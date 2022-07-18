@@ -11,6 +11,7 @@ module.exports = {
     // 3. When we modify some vue source files, dev-server's hot reload is kicked (by inotify? don't know the details),
     //    then tailwindcss/setupTrackingContext.js is called eventually, and it fails by ENOENT because the chdir is src-tauri at this point.
     require("path").resolve(__dirname, "./src/**/*.{vue,js,ts,jsx,tsx}"),
+    require("path").resolve(__dirname, "./public/index.html"),
   ],
   theme: {
     extend: {},
