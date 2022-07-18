@@ -35,10 +35,9 @@
 </template>
 
 <script lang="ts">
-import { Options, Vue } from 'vue-class-component'
-import {Frame, Profile, Sample, StackTrace} from '@/models/jfr/profile'
+import { Vue } from 'vue-class-component'
+import { Frame, Profile, Sample, StackTrace } from '@/models/jfr/profile'
 import { readTextFile } from '@tauri-apps/api/fs'
-import { WebviewWindow } from '@tauri-apps/api/window'
 import { invoke } from '@tauri-apps/api'
 
 const CHART_WIDTH = 4096;
@@ -90,8 +89,6 @@ export default class JFRView extends Vue {
     this.threads = threads.sort((a, b) => a.name.localeCompare(b.name))
 
     this.sampleRenderWidth = CHART_WIDTH / maxSamples
-
-    const webview = new WebviewWindow("new-window", {url: "http://localhost:8080/"})
   }
 
   threadStateColor(state: number): string {
