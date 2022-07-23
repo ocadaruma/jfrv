@@ -103,10 +103,11 @@ export default class JFRView extends Vue {
   selectedSampleIndex = -1
   profile?: ThreadProfile
 
-  async mounted() {
+  async created() {
     console.log("start")
-    const filePath: string = await invoke("jfr_file_path")
-    const text = await readTextFile(filePath)
+    const text: string = await invoke("jfr_file")
+    // const text = await readTextFile(filePath)
+    console.log("read")
     const profile: Profile = JSON.parse(text)
     console.log("parsed")
 
@@ -178,6 +179,7 @@ export default class JFRView extends Vue {
     }
 
     this.adjustOverlaySize()
+    window.addEventListener("resize", this.adjustOverlaySize)
 
     console.log("rendered")
   }

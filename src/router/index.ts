@@ -1,16 +1,20 @@
 import { createRouter, createWebHistory, RouteRecordRaw } from 'vue-router'
-import HomeView from '../views/HomeView.vue'
-import JFRView from '../views/JFRView.vue'
+import JFRView from '@/views/JFRView.vue'
+import HomeView from "@/views/HomeView.vue";
 
 const routes: Array<RouteRecordRaw> = [
   {
-    path: '/',
-    name: 'home',
+    path: "/",
+    redirect: "/jfr",
+  },
+  {
+    path: "/home",
+    name: "home",
     component: HomeView
   },
   {
-    path: '/jfr',
-    name: 'jfr',
+    path: "/jfr",
+    name: "jfr",
     component: JFRView
   }
 ]
