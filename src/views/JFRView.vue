@@ -26,10 +26,11 @@
            class="float-left sticky text-sm left-0 bg-slate-100 border-r-4 border-double border-slate-300">
         <svg ref="thread-chart-header" width="0" height="0"/>
       </div>
-      <canvas ref="thread-chart-sample-view"
-              class="bg-slate-100"
-              width="0"
-              height="0"/>
+<!--      <canvas ref="thread-chart-sample-view"-->
+<!--              class="bg-slate-100"-->
+<!--              width="0"-->
+<!--              height="0"/>-->
+      <div class="bg-slate-100" ref="thread-chart-sample-view-area"/>
     </div>
     <div class="fixed top-20 left-12 right-0 bottom-32 pointer-events-none">
       <canvas ref="thread-chart-overlay" width="0" height="0" />
@@ -42,6 +43,8 @@ import { Vue } from 'vue-class-component'
 import { Frame, Profile, Sample, StackTrace } from '@/models/jfr/profile'
 import { readTextFile } from '@tauri-apps/api/fs'
 import { invoke } from '@tauri-apps/api'
+import { Application } from '@pixi/app'
+import {Graphics} from "pixi.js";
 
 interface Thread {
   readonly id: number,
@@ -117,19 +120,25 @@ export default class JFRView extends Vue {
     console.log("converted")
 
     const header = this.$refs["thread-chart-header"] as HTMLElement
-    const sampleView = this.$refs["thread-chart-sample-view"] as HTMLCanvasElement
+    const sampleViewArea = this.$refs["thread-chart-sample-view-area"] as HTMLElement
 
     const rowHeight = CHART_CONFIG.fontSize + CHART_CONFIG.margin * 2
     const height = rowHeight * threadProfile.threads.length
     const sampleViewWidth = CHART_CONFIG.sampleRenderSize.width * threadProfile.maxSampleNum
 
+    const pixi = new Application({
+      width: sampleViewWidth,
+      height: height})
+    sampleViewArea.appendChild(pixi.view)
+
     // adjust sizes
     header.setAttribute("width", String(CHART_CONFIG.headerWidth))
     header.setAttribute("height", String(height))
-    sampleView.width = sampleViewWidth
-    sampleView.height = height
+    // sampleView.width = sampleViewWidth
+    // sampleView.height = height
 
-    const ctx = sampleView.getContext("2d", { alpha: false })!
+    // const ctx = sampleView.getContext("2d", { alpha: false })!
+    const obj = new Graphics()
     for (let i = 0; i < threadProfile.threads.length; i++) {
       const thread = threadProfile.threads[i]
       const yOffset = rowHeight * i;
@@ -164,19 +173,22 @@ export default class JFRView extends Vue {
         const y = yOffset + (rowHeight - CHART_CONFIG.sampleRenderSize.height) / 2
 
         const stateName = profile.threadStatePool[sample.threadStateId]
-        let fillColor = "#6f6d72"
+        let fillColor = 0x6f6d72
         if (stateName === "STATE_RUNNABLE") {
-          fillColor = "#6cba1e";
+          fillColor = 0x6cba1e
         }
         if (stateName === "STATE_SLEEPING") {
-          fillColor = "#8d3eee";
+          fillColor = 0x8d3eee
         }
 
-        ctx.fillStyle = fillColor
-        ctx.fillRect(x, y, CHART_CONFIG.sampleRenderSize.width, CHART_CONFIG.sampleRenderSize.height)
+        obj.beginFill(fillColor)
+        obj.drawRect(x, y, CHART_CONFIG.sampleRenderSize.width, CHART_CONFIG.sampleRenderSize.height)
+
+        // ctx.fillRect(x, y, CHART_CONFIG.sampleRenderSize.width, CHART_CONFIG.sampleRenderSize.height)
       }
     }
 
+    pixi.stage.addChild(obj)
     this.adjustOverlaySize()
 
     console.log("rendered")
@@ -228,7 +240,7 @@ export default class JFRView extends Vue {
   private chartMouseMove(e: MouseEvent) {
     const chart = this.$refs["thread-chart"] as HTMLElement
     const headerContainer = this.$refs["thread-chart-header-container"] as HTMLElement
-    const sampleView = this.$refs["thread-chart-sample-view"] as HTMLCanvasElement
+    const sampleView = (this.$refs["thread-chart-sample-view-area"] as HTMLElement).firstChild as HTMLCanvasElement
     const container = this.$refs["thread-chart-container"] as HTMLElement
     const overlay = this.$refs["thread-chart-overlay"] as HTMLCanvasElement
     const { interval, threads, samples: perThreadSamples } = this.profile!
