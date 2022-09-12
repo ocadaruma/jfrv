@@ -42,9 +42,6 @@
 
 <script lang="ts">
 import { Vue } from 'vue-class-component'
-// import { Frame, Profile, Sample, StackTrace } from '@/models/jfr/profile'
-import { readTextFile } from '@tauri-apps/api/fs'
-import { invoke } from '@tauri-apps/api'
 import {
   JfrRenderer,
   Frame,

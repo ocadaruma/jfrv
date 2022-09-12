@@ -2,6 +2,8 @@ use std::collections::HashMap;
 use std::hash::Hash;
 use std::io::{BufReader, Cursor};
 use jfrs::reader::{JfrReader};
+use jfrs::reader::event::Accessor;
+use jfrs::reader::value_descriptor::ValueDescriptor;
 // Entry point for wasm
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
@@ -174,21 +176,31 @@ impl JfrRenderer {
         // );
         // rectangle.render(window.viewport());
 
-        let mut stack_trace_pool: Pool<StackTrace> = Pool::default();
+        let mut stack_trace_pool: HashMap<i32, StackTrace> = HashMap::new();
         let mut thread_name_pool: HashMap<i64, String> = HashMap::new();
-        let mut thread_state_pool: Pool<String> = Pool::default();
+        let mut thread_state_pool: HashMap<i32, String> = HashMap::new();
         let mut samples: Vec<Sample> = Vec::new();
 
         let mut event_count = 0;
         let mut reader = JfrReader::new(Cursor::new(bytes));
         for reader in reader.chunks() {
             if let Ok((reader, chunk)) = reader {
+                let mut stack_trace_cp_pool: Pool = Pool::default();
+                let mut thread_state_cp_pool: Pool = Pool::default();
+
                 for event in reader.events(&chunk) {
                     if let Ok(event) = event {
                         if event.class.name() != "jdk.ExecutionSample" {
                             continue;
                         }
                         event_count += 1;
+
+                        let stack_trace_cp_index = match event.value().get_field("stackTrace").map(|t| t.value) {
+                            Some(ValueDescriptor::ConstantPool {class_id, constant_index}) => {
+                                (*class_id, *constant_index)
+                            }
+                            _ => continue
+                        };
 
                         let t = event.value().get_field("sampledThread");
                         let thread_name = if let Some(name) = t.as_ref()
@@ -205,46 +217,63 @@ impl JfrRenderer {
                         let thread_id = t.as_ref()
                             .and_then(|t| t.get_field("osThreadId"))
                             .and_then(|i| i64::try_from(i.value).ok()).unwrap();
+
                         thread_name_pool.insert(thread_id, thread_name);
 
-                        let mut frames: Vec<Frame> = Vec::new();
-                        for f in event.value()
-                            .get_field("stackTrace")
-                            .and_then(|t| t.get_field("frames"))
-                            .and_then(|f| f.as_iter())
-                            .unwrap() {
-                            frames.push(Frame {
-                                type_name: f.get_field("method")
-                                    .and_then(|m| m.get_field("type"))
-                                    .and_then(|t| t.get_field("name"))
-                                    .and_then(|n| n.get_field("string"))
-                                    .and_then(|s| <&str>::try_from(s.value).ok()).unwrap().to_string(),
-                                method_name: f.get_field("method")
-                                    .and_then(|t| t.get_field("name"))
-                                    .and_then(|n| n.get_field("string"))
-                                    .and_then(|s| <&str>::try_from(s.value).ok()).unwrap().to_string(),
-                            })
-                        }
+                        let thread_state_cp_index = match event.value().get_field("state").map(|s| s.value) {
+                            Some(ValueDescriptor::ConstantPool {class_id, constant_index}) => {
+                                (*class_id, *constant_index)
+                            }
+                            _ => continue
+                        };
 
-                        let thread_state = event.value().get_field("state")
-                            .and_then(|s| s.get_field("name"))
-                            .and_then(|s| <&str>::try_from(s.value).ok()).unwrap().to_string();
                         let start_time = event.value().get_field("startTime")
                             .and_then(|s| i64::try_from(s.value).ok()).unwrap();
 
                         samples.push(Sample {
                             timestamp: start_time,
                             thread_id,
-                            thread_state_id: thread_state_pool.register(thread_state),
-                            stack_trace_id: stack_trace_pool.register(StackTrace {
-                                frames
-                            })
+                            thread_state_id: thread_state_cp_pool.register(thread_state_cp_index),
+                            stack_trace_id: stack_trace_cp_pool.register(stack_trace_cp_index)
                         })
                     } else {
                         warn!("Failed to read event");
                         return None;
                     }
                 }
+
+                for (k, v) in thread_state_cp_pool.cache {
+                    let desc = ValueDescriptor::ConstantPool {class_id: k.0, constant_index: k.1};
+                    let accessor = Accessor::new(&chunk, &desc);
+                    let str = accessor
+                        .get_field("name")
+                        .and_then(|s| <&str>::try_from(s.value).ok()).unwrap().to_string();
+                    thread_state_pool.insert(v, str);
+                }
+
+                for (k, v) in stack_trace_cp_pool.cache {
+                    let desc = ValueDescriptor::ConstantPool { class_id: k.0, constant_index: k.1 };
+                    let accessor = Accessor::new(&chunk, &desc);
+                    let mut frames: Vec<Frame> = Vec::new();
+                    for f in accessor
+                        .get_field("frames")
+                        .and_then(|f| f.as_iter())
+                        .unwrap() {
+                        frames.push(Frame {
+                            type_name: f.get_field("method")
+                                .and_then(|m| m.get_field("type"))
+                                .and_then(|t| t.get_field("name"))
+                                .and_then(|n| n.get_field("string"))
+                                .and_then(|s| <&str>::try_from(s.value).ok()).unwrap().to_string(),
+                            method_name: f.get_field("method")
+                                .and_then(|t| t.get_field("name"))
+                                .and_then(|n| n.get_field("string"))
+                                .and_then(|s| <&str>::try_from(s.value).ok()).unwrap().to_string(),
+                        })
+                    }
+                    stack_trace_pool.insert(v, StackTrace { frames });
+                }
+
             } else {
                 warn!("Failed to read chunk");
                 return None;
@@ -254,9 +283,9 @@ impl JfrRenderer {
 
         let profile = Profile {
             samples,
-            stack_trace_pool: stack_trace_pool.result(),
+            stack_trace_pool,
             thread_name_pool,
-            thread_state_pool: thread_state_pool.result()
+            thread_state_pool,
         };
 
         Some(profile)
@@ -264,26 +293,19 @@ impl JfrRenderer {
 }
 
 #[derive(Default)]
-struct Pool<T> {
+struct Pool {
     id: i32,
-    cache: HashMap<T, i32>
+    cache: HashMap<(i64, i64), i32>
 }
 
-impl<T: Hash + Eq> Pool<T> {
-    fn result(self) -> HashMap<i32, T> {
-        let mut m = HashMap::new();
-        for (k, v) in self.cache {
-            m.insert(v, k);
-        }
-        m
-    }
-
-    fn register(&mut self, v: T) -> i32 {
+impl Pool {
+    fn register(&mut self, v: (i64, i64)) -> i32 {
         if let Some(i) = self.cache.get(&v) {
             return *i;
         }
         self.cache.insert(v, self.id);
+        let prev = self.id;
         self.id += 1;
-        self.id
+        prev
     }
 }
