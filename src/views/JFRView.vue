@@ -27,12 +27,12 @@
            class="float-left sticky text-sm left-0 bg-slate-100 border-r-4 border-double border-slate-300">
         <svg ref="thread-chart-header" width="0" height="0"/>
       </div>
-<!--      <canvas ref="thread-chart-sample-view"-->
-<!--              id="thread-chart-sample-view"-->
-<!--              class="bg-slate-100"-->
-<!--              width="0"-->
-<!--              height="0"/>-->
-      <div class="bg-slate-100" ref="thread-chart-sample-view-area"/>
+      <canvas ref="thread-chart-sample-view"
+              id="thread-chart-sample-view"
+              class="bg-slate-100"
+              width="0"
+              height="0"/>
+<!--      <div class="bg-slate-100" ref="thread-chart-sample-view-area"/>-->
     </div>
     <div class="fixed top-20 left-12 right-0 bottom-32 pointer-events-none">
       <canvas ref="thread-chart-overlay" width="0" height="0" />
@@ -49,7 +49,7 @@ import {
   Sample,
   StackTrace,
   ChartConfig,
-  ThreadProfile, Thread
+  ThreadProfile,
 } from "../../pete2-wasm/pkg";
 import {Application, Graphics} from "pixi.js";
 
@@ -78,45 +78,6 @@ export default class JFRView extends Vue {
     this.renderer = new wasm.JfrRenderer()
   }
 
-  private convertProfile(profile: Profile): ThreadProfile {
-    const perThreadSamples: { [id: number]: Sample[] } = {}
-
-    let startMillis = Infinity
-    let endMillis = -1
-    let maxSamples = 0
-
-    const threads: Thread[] = []
-    profile.samples.forEach(sample => {
-      startMillis = Math.min(startMillis, sample.timestamp)
-      endMillis = Math.max(endMillis, sample.timestamp)
-
-      let samples = perThreadSamples[sample.threadId]
-      if (samples === undefined) {
-        threads.push({ id: sample.threadId, name: profile.threadNamePool[sample.threadId] })
-        samples = []
-      }
-      samples.push(sample)
-      perThreadSamples[sample.threadId] = samples
-      maxSamples = Math.max(maxSamples, samples.length)
-    })
-
-    threads.sort((a, b) => a.name.localeCompare(b.name))
-    for (let i = 0; i < threads.length; i++) {
-      perThreadSamples[threads[i].id].sort((a, b) => a.timestamp - b.timestamp)
-    }
-
-    return {
-      interval: {
-        startMillis,
-        endMillis,
-        durationMillis: endMillis - startMillis
-      },
-      samples: perThreadSamples,
-      maxSampleNum: maxSamples,
-      threads: threads
-    }
-  }
-
   private adjustOverlaySize() {
     const overlay = this.$refs["thread-chart-overlay"] as HTMLCanvasElement
     const container = this.$refs["thread-chart-container"] as HTMLElement
@@ -128,7 +89,7 @@ export default class JFRView extends Vue {
   private chartMouseMove(e: MouseEvent) {
     const chart = this.$refs["thread-chart"] as HTMLElement
     const headerContainer = this.$refs["thread-chart-header-container"] as HTMLElement
-    const sampleView = (this.$refs["thread-chart-sample-view-area"] as HTMLElement).firstChild as HTMLCanvasElement
+    const sampleView = this.$refs["thread-chart-sample-view"] as HTMLCanvasElement;
     const container = this.$refs["thread-chart-container"] as HTMLElement
     const overlay = this.$refs["thread-chart-overlay"] as HTMLCanvasElement
     const { interval, threads, samples: perThreadSamples } = this.profile!
@@ -229,27 +190,25 @@ export default class JFRView extends Vue {
     // console.log("start")
     // const filePath: string = await invoke("jfr_file_path")
     // const text = await readTextFile(filePath)
-    const profile: Profile = this.renderer!.load_jfr(data)!
+    const threadProfile: ThreadProfile = this.renderer!.load_jfr(data, CHART_CONFIG)!
     // console.log("parsed")
 
-    this.stackTracePool = profile.stackTracePool
-
-    const threadProfile = this.convertProfile(profile)
+    this.stackTracePool = threadProfile.stackTracePool
     this.profile = threadProfile
     console.log("converted")
 
     const header = this.$refs["thread-chart-header"] as HTMLElement
-    const sampleViewArea = this.$refs["thread-chart-sample-view-area"] as HTMLElement
+    // const sampleViewArea = this.$refs["thread-chart-sample-view-area"] as HTMLElement
 
     const rowHeight = CHART_CONFIG.fontSize + CHART_CONFIG.margin * 2
     const height = rowHeight * threadProfile.threads.length
     const sampleViewWidth = CHART_CONFIG.sampleRenderSize.width * threadProfile.maxSampleNum
 
-    const pixi = new Application({
-      width: sampleViewWidth,
-      height: height,
-      backgroundColor: 0xf2f5f9})
-    sampleViewArea.appendChild(pixi.view)
+    // const pixi = new Application({
+    //   width: sampleViewWidth,
+    //   height: height,
+    //   backgroundColor: 0xf2f5f9})
+    // sampleViewArea.appendChild(pixi.view)
 
     // adjust sizes
     header.setAttribute("width", String(CHART_CONFIG.headerWidth))
@@ -285,30 +244,30 @@ export default class JFRView extends Vue {
         header.appendChild(line)
       }
 
-      const samples = threadProfile.samples[thread.id]
-      for (let j = 0; j < samples.length; j++) {
-        const sample = samples[j]
-        const x = sampleViewWidth * (sample.timestamp - threadProfile.interval.startMillis) /
-            threadProfile.interval.durationMillis
-        const y = yOffset + (rowHeight - CHART_CONFIG.sampleRenderSize.height) / 2
-
-        const stateName = profile.threadStatePool[sample.threadStateId]
-        let fillColor = 0x6f6d72
-        if (stateName === "STATE_RUNNABLE") {
-          fillColor = 0x6cba1e
-        }
-        if (stateName === "STATE_SLEEPING") {
-          fillColor = 0x8d3eee
-        }
-
-        obj.beginFill(fillColor)
-        obj.drawRect(x, y, CHART_CONFIG.sampleRenderSize.width, CHART_CONFIG.sampleRenderSize.height)
+      // const samples = threadProfile.samples[thread.id]
+      // for (let j = 0; j < samples.length; j++) {
+      //   const sample = samples[j]
+      //   const x = sampleViewWidth * (sample.timestamp - threadProfile.interval.startMillis) /
+      //       threadProfile.interval.durationMillis
+      //   const y = yOffset + (rowHeight - CHART_CONFIG.sampleRenderSize.height) / 2
+      //
+      //   const stateName = threadProfile.threadStatePool[sample.threadStateId]
+      //   let fillColor = 0x6f6d72
+      //   if (stateName === "STATE_RUNNABLE") {
+      //     fillColor = 0x6cba1e
+      //   }
+      //   if (stateName === "STATE_SLEEPING") {
+      //     fillColor = 0x8d3eee
+      //   }
+      //
+      //   obj.beginFill(fillColor)
+      //   obj.drawRect(x, y, CHART_CONFIG.sampleRenderSize.width, CHART_CONFIG.sampleRenderSize.height)
 
         // ctx.fillRect(x, y, CHART_CONFIG.sampleRenderSize.width, CHART_CONFIG.sampleRenderSize.height)
-      }
+      // }
     }
 
-    pixi.stage.addChild(obj)
+    // pixi.stage.addChild(obj)
     this.adjustOverlaySize()
 
     console.log("rendered")

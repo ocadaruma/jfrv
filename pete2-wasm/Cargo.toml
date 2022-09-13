@@ -18,3 +18,4 @@ console_log = "0.2"
 web-sys = { version = "0.3.59", features = ["Document", "HtmlCollection", "HtmlCanvasElement", "Window"] }
 serde = { version = "1.0.144", features = ["derive"] }
 tsify = "0.4.0"
+speedy2d = "1.8.0"

@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::hash::Hash;
 use std::io::{BufReader, Cursor};
+use std::rc::Rc;
 use jfrs::reader::{JfrReader};
 use jfrs::reader::event::Accessor;
 use jfrs::reader::value_descriptor::ValueDescriptor;
@@ -9,12 +10,16 @@ use jfrs::reader::value_descriptor::ValueDescriptor;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 use web_sys::console::error;
-use three_d::{Object2D, Rad, Vector2};
+// use three_d::{Object2D, Rad, Vector2};
 
 use log::{info, warn};
-use three_d::{Color, ColorMaterial, degrees, Rectangle, vec2, Window, WindowSettings};
+// use three_d::{Color, ColorMaterial, degrees, Rectangle, vec2, Window, WindowSettings};
 use tsify::Tsify;
 use serde::{Serialize, Deserialize};
+use speedy2d::color::Color;
+use speedy2d::Graphics2D;
+use speedy2d::shape::Rectangle;
+use speedy2d::window::{WindowHandler, WindowHelper, WindowStartupInfo};
 
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen(start)]
@@ -88,7 +93,9 @@ pub struct ThreadProfile {
     pub interval: DateInterval,
     pub samples: HashMap<i64, Vec<Sample>>,
     pub max_sample_num: usize,
-    pub threads: Vec<SampledThread>
+    pub threads: Vec<SampledThread>,
+    pub stack_trace_pool: HashMap<i32, StackTrace>,
+    pub thread_state_pool: HashMap<i32, String>,
 }
 
 #[derive(Deserialize, Serialize, Tsify)]
@@ -126,14 +133,6 @@ pub struct Profile {
     pub thread_state_pool: HashMap<i32, String>,
 }
 
-#[derive(Default, Deserialize, Serialize, Tsify)]
-#[tsify(into_wasm_abi, from_wasm_abi)]
-#[serde(rename_all = "camelCase")]
-pub struct Thread {
-    pub id: i32,
-    pub name: String
-}
-
 #[wasm_bindgen]
 pub struct JfrRenderer {
 }
@@ -145,43 +144,19 @@ impl JfrRenderer {
         Self {}
     }
 
-    pub fn load_jfr(&mut self, bytes: Vec<u8>) -> Option<Profile> {
+    pub fn load_jfr(self, bytes: Vec<u8>, chart_config: ChartConfig) -> Option<ThreadProfile> {
         info!("passed. byte size: {}", bytes.len());
-
-        // let canvas = web_sys::window()
-        //     .and_then(|w| w.document())
-        //     .and_then(|d| d.get_element_by_id("thread-chart-sample-view"))
-        //     .and_then(|e| e.dyn_into::<web_sys::HtmlCanvasElement>().ok())
-        //     .unwrap();
-        //
-        // canvas.set_width(800);
-        // canvas.set_height(600);
-        //
-        // let window = Window::new(WindowSettings {
-        //     canvas: Some(canvas),
-        //     ..WindowSettings::default()
-        // }).unwrap();
-        // let context = window.gl();
-        //
-        // let mut rectangle = Rectangle::new_with_material(
-        //     &context,
-        //     vec2(50.0, 100.0),
-        //     Rad(0.0),
-        //     100.0,
-        //     200.0,
-        //     ColorMaterial {
-        //         color: Color::RED,
-        //         ..Default::default()
-        //     },
-        // );
-        // rectangle.render(window.viewport());
 
         let mut stack_trace_pool: HashMap<i32, StackTrace> = HashMap::new();
         let mut thread_name_pool: HashMap<i64, String> = HashMap::new();
         let mut thread_state_pool: HashMap<i32, String> = HashMap::new();
-        let mut samples: Vec<Sample> = Vec::new();
+        let mut per_thread_samples: HashMap<i64, Vec<Sample>> = HashMap::new();
 
         let mut event_count = 0;
+        let mut start_millis = i64::MAX;
+        let mut end_millis = -1i64;
+        let mut max_samples = 0;
+
         let mut reader = JfrReader::new(Cursor::new(bytes));
         for reader in reader.chunks() {
             if let Ok((reader, chunk)) = reader {
@@ -229,13 +204,21 @@ impl JfrRenderer {
 
                         let start_time = event.value().get_field("startTime")
                             .and_then(|s| i64::try_from(s.value).ok()).unwrap();
+                        start_millis = start_millis.min(start_time);
+                        end_millis = end_millis.max(start_time);
 
-                        samples.push(Sample {
-                            timestamp: start_time,
-                            thread_id,
-                            thread_state_id: thread_state_cp_pool.register(thread_state_cp_index),
-                            stack_trace_id: stack_trace_cp_pool.register(stack_trace_cp_index)
-                        })
+                        per_thread_samples
+                            .entry(thread_id)
+                            .or_insert(vec![])
+                            .push(Sample {
+                                timestamp: start_time,
+                                thread_id,
+                                thread_state_id: thread_state_cp_pool.register(thread_state_cp_index),
+                                stack_trace_id: stack_trace_cp_pool.register(stack_trace_cp_index)
+                            });
+                        max_samples = max_samples.max(
+                            per_thread_samples.get(&thread_id)
+                                .map(|v| v.len()).unwrap_or(0));
                     } else {
                         warn!("Failed to read event");
                         return None;
@@ -279,14 +262,74 @@ impl JfrRenderer {
                 return None;
             }
         }
-        info!("event_count: {}", event_count);
 
-        let profile = Profile {
-            samples,
+        for (k, v) in per_thread_samples.iter_mut() {
+            v.sort_by_key(|s| s.timestamp);
+        }
+        let mut threads = vec![];
+        for (k, v) in thread_name_pool {
+            threads.push(SampledThread { id: k, name: v });
+        }
+        threads.sort_by(|a, b| a.name.cmp(&b.name));
+
+        let interval = DateInterval { start_millis, end_millis, duration_millis: end_millis - start_millis };
+        let sample_view_width = chart_config.sample_render_size.width *
+            (max_samples as f32);
+        let row_height = chart_config.font_size + (chart_config.margin * 2.0);
+
+        let mut shapes: Vec<Rect> = vec![];
+        for (i, thread) in threads.iter().enumerate() {
+            if let Some(samples) = per_thread_samples.get(&thread.id) {
+                for (j, sample) in samples.iter().enumerate() {
+                    let x = sample_view_width * (sample.timestamp - interval.start_millis) as f32
+                        / interval.duration_millis as f32;
+                    let y = row_height * i as f32 + (row_height - chart_config.sample_render_size.height) / 2.0;
+
+                    let state_name = thread_state_pool.get(&sample.thread_state_id).unwrap();
+                    let color = match state_name.as_str() {
+                        "STATE_RUNNABLE" => 0x6cba1e,
+                        "STATE_SLEEPING" => 0x8d3eee,
+                        _ => 0x6f6d72
+                    };
+
+                    shapes.push(Rect {
+                        x, y,
+                        width: chart_config.sample_render_size.width,
+                        height: chart_config.sample_render_size.height,
+                        color: Color::from_hex_rgb(color)
+                    });
+                }
+            }
+        }
+
+        let canvas = web_sys::window()
+            .and_then(|w| w.document())
+            .and_then(|d| d.get_element_by_id("thread-chart-sample-view"))
+            .and_then(|e| e.dyn_into::<web_sys::HtmlCanvasElement>().ok())
+            .unwrap();
+        canvas.set_width((sample_view_width / 2.0) as u32);
+        canvas.set_height(((row_height * threads.len() as f32) / 2.0) as u32);
+
+        speedy2d::WebCanvas::new_for_id("thread-chart-sample-view", ChartHandler {
+            info: ChartDrawInfo { samples: shapes },
+            scale_factor: 1.0,
+        }).unwrap();
+
+        info!("event_count: {}", event_count);
+        let profile = ThreadProfile {
+            interval,
+            samples: per_thread_samples,
+            max_sample_num: max_samples,
+            threads,
             stack_trace_pool,
-            thread_name_pool,
-            thread_state_pool,
+            thread_state_pool
         };
+
+        // let profile = Rc::new(profile);
+        // speedy2d::WebCanvas::new_for_id("thread-chart-sample-view", ChartHandler {
+        //     canvas: Rc::new(canvas),
+        //     profile: profile.clone(),
+        // }).unwrap();
 
         Some(profile)
     }
@@ -307,5 +350,35 @@ impl Pool {
         let prev = self.id;
         self.id += 1;
         prev
+    }
+}
+
+struct Rect {
+    x: f32, y: f32, width: f32, height: f32, color: Color
+}
+
+struct ChartDrawInfo {
+    samples: Vec<Rect>
+}
+
+struct ChartHandler {
+    info: ChartDrawInfo,
+    scale_factor: f64,
+}
+
+impl WindowHandler for ChartHandler {
+    fn on_start(&mut self, helper: &mut WindowHelper<()>, info: WindowStartupInfo) {
+        self.scale_factor = info.scale_factor();
+    }
+
+    fn on_draw(&mut self, helper: &mut WindowHelper<()>, graphics: &mut Graphics2D) {
+        graphics.clear_screen(Color::from_hex_rgb(0xf2f5f9));
+        let f = self.scale_factor as f32;
+
+        for sample in self.info.samples.iter() {
+            graphics.draw_rectangle(Rectangle::from_tuples(
+                (sample.x, sample.y), (sample.x + sample.width, sample.y + sample.height)
+            ), sample.color);
+        }
     }
 }
