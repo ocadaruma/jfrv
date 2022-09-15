@@ -262,6 +262,7 @@ impl JfrRenderer {
                 return None;
             }
         }
+        info!("Done read chunk");
 
         for (k, v) in per_thread_samples.iter_mut() {
             v.sort_by_key(|s| s.timestamp);
@@ -301,6 +302,7 @@ impl JfrRenderer {
                 }
             }
         }
+        info!("Done convert");
 
         let canvas = web_sys::window()
             .and_then(|w| w.document())
@@ -314,6 +316,7 @@ impl JfrRenderer {
             info: ChartDrawInfo { samples: shapes },
             scale_factor: 1.0,
         }).unwrap();
+        info!("Done render");
 
         info!("event_count: {}", event_count);
         let profile = ThreadProfile {
