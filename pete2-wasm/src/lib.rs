@@ -9,33 +9,21 @@ use jfrs::reader::value_descriptor::ValueDescriptor;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 use web_sys::console::error;
-// use three_d::{Object2D, Rad, Vector2};
 
 use log::{info, warn};
-// use three_d::{Color, ColorMaterial, degrees, Rectangle, vec2, Window, WindowSettings};
 use tsify::Tsify;
 use serde::{Serialize, Deserialize};
 use speedy2d::color::Color;
 use speedy2d::dimen::UVec2;
 use speedy2d::Graphics2D;
 use speedy2d::shape::Rectangle;
-// use speedy2d::window::{WindowHandler, WindowHelper, WindowStartupInfo};
 
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen(start)]
 pub fn start() -> Result<(), JsValue> {
     std::panic::set_hook(Box::new(console_error_panic_hook::hook));
     console_log::init_with_level(log::Level::Debug);
-    //
-    info!("Logging works!");
-    //
-
-    info!("hello, world from wasm");
-    main();
-    Ok(())
-}
-
-fn main() -> Result<(), ()> {
+    info!("Renderer loaded");
     Ok(())
 }
 
@@ -157,7 +145,7 @@ impl JfrRenderer {
     }
 
     pub fn load_jfr(&mut self, bytes: Vec<u8>, chart_config: ChartConfig) -> Option<ThreadProfile> {
-        info!("passed. byte size: {}", bytes.len());
+        info!("loading JFR file of {} bytes", bytes.len());
 
         let mut stack_trace_pool: HashMap<i32, StackTrace> = HashMap::new();
         let mut thread_name_pool: HashMap<i64, String> = HashMap::new();
@@ -369,23 +357,9 @@ impl JfrRenderer {
         self.chart_config = chart_config;
         self.stack_trace_pool = stack_trace_pool;
 
-        // speedy2d::WebCanvas::new_for_id("thread-chart-sample-view", ChartHandler {
-        //     info: ChartDrawInfo { samples: shapes },
-        //     scale_factor: 1.0,
-        // }).unwrap();
         info!("Done render");
 
         info!("event_count: {}", event_count);
-        // let profile = ThreadProfile {
-        //     interval,
-        //     samples: per_thread_samples,
-        //     max_sample_num: max_samples,
-        //     threads,
-        //     stack_trace_pool,
-        //     thread_state_pool
-        // };
-
-        // Some(profile)
         None
     }
 
@@ -545,38 +519,3 @@ impl Pool {
 struct Rect {
     x: f32, y: f32, width: f32, height: f32, color: Color
 }
-
-struct ChartDrawInfo {
-    samples: Vec<Rect>
-}
-
-struct ChartHandler {
-    info: ChartDrawInfo,
-    scale_factor: f64,
-}
-
-// impl WindowHandler for ChartHandler {
-//     fn on_start(&mut self, helper: &mut WindowHelper<()>, info: WindowStartupInfo) {
-//         self.scale_factor = info.scale_factor();
-//     }
-//
-//     fn on_draw(&mut self, helper: &mut WindowHelper<()>, graphics: &mut Graphics2D) {
-//         info!("on_draw requested");
-//         // graphics.clear_screen(Color::from_hex_rgb(0xf2f5f9));
-//         // let f = self.scale_factor as f32;
-//         //
-//         // for sample in self.info.samples.iter() {
-//         //     graphics.draw_rectangle(Rectangle::from_tuples(
-//         //         (sample.x, sample.y), (sample.x + sample.width, sample.y + sample.height)
-//         //     ), sample.color);
-//         // }
-//     }
-//
-//     fn on_resize(&mut self, helper: &mut WindowHelper<()>, size_pixels: UVec2) {
-//         info!("on_resize requested: {:?}", size_pixels);
-//     }
-//
-//     fn on_scale_factor_changed(&mut self, helper: &mut WindowHelper<()>, scale_factor: f64) {
-//         info!("on_scale_factor_changed requested: {:?}", scale_factor);
-//     }
-// }

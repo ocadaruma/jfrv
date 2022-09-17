@@ -48,9 +48,6 @@
             </div>
           </pane>
         </splitpanes>
-<!--        <div class="absolute top-0 right-0 left-0 bottom-0 pointer-events-none">-->
-<!--          <canvas ref="overlay" class="w-full h-full" @resize="syncOverlaySize"></canvas>-->
-<!--        </div>-->
       </div>
     </pane>
     <pane size="40" class="overflow-auto">
@@ -66,11 +63,7 @@ import { Splitpanes, Pane } from "splitpanes";
 import {
   JfrRenderer,
   Frame,
-  Profile,
-  Sample,
-  StackTrace,
   ChartConfig,
-  ThreadProfile, SampledThread,
 } from "../../pete2-wasm/pkg";
 import {ComponentPublicInstance, onMounted, ref} from "vue";
 import {FileRejectReason, useDropzone} from "vue3-dropzone";
@@ -88,10 +81,6 @@ const CHART_CONFIG: ChartConfig = {
   }
 }
 
-const stackTracePool = ref<Record<number, StackTrace>>()
-const selectedThreadIndex = ref(-1)
-const selectedSampleIndex = ref(-1)
-const profile = ref<ThreadProfile>()
 const renderer = ref<JfrRenderer>()
 const fileLoaded = ref(false)
 
@@ -100,7 +89,6 @@ const headerPane = ref<ComponentPublicInstance>()
 const chartPane = ref<ComponentPublicInstance>()
 const header = ref<SVGGraphicsElement>()
 const chart = ref<HTMLCanvasElement>()
-const overlay = ref<HTMLCanvasElement>()
 
 const {
   getRootProps,
@@ -144,63 +132,14 @@ function onMouseOut() {
   renderer.value?.on_mouse_out()
 }
 
-function render() {
-  renderer.value?.clear()
-  setTimeout(() => {
-    console.log("gonna render")
-    renderer.value?.render()
-  }, 1000)
-}
-
 async function openFile(acceptedFiles: File[], rejectReasons: FileRejectReason[]) {
   const buf = await acceptedFiles[0].arrayBuffer()
   const data = new Uint8Array(buf)
 
-  const threadProfile: ThreadProfile = renderer.value!.load_jfr(data, CHART_CONFIG)!
-  renderer.value?.render();
-  // stackTracePool.value = threadProfile.stackTracePool
-  // profile.value = threadProfile
-  console.log("converted")
+  renderer.value?.load_jfr(data, CHART_CONFIG)
+  renderer.value?.render()
 
-  // const rowHeight = CHART_CONFIG.fontSize + CHART_CONFIG.margin * 2
-  // const height = rowHeight * threadProfile.threads.length
-  //
-  // for (let i = 0; i < threadProfile.threads.length; i++) {
-  //   const thread = threadProfile.threads[i]
-  //   const yOffset = rowHeight * i;
-  //
-  //   const text = document.createElementNS("http://www.w3.org/2000/svg", "text")
-  //   const textNode = document.createTextNode(thread.name)
-  //   text.setAttribute("x", String(CHART_CONFIG.margin))
-  //   // y is the baseline of the text.
-  //   // so we add fontSize to the current offset.
-  //   // also add margin to allocate the margin-top.
-  //   text.setAttribute("y", String(yOffset + CHART_CONFIG.fontSize + CHART_CONFIG.margin))
-  //   text.appendChild(textNode)
-  //   header.value?.appendChild(text)
-  // }
   fileLoaded.value = true
-
-  // adjust sizes then render borders
-  // const headerWidth = header.value?.getBBox().width
-  //
-  // for (let i = 0; i < threadProfile.threads.length; i++) {
-  //   const yOffset = rowHeight * i;
-  //   if (i < threadProfile.threads.length - 1) {
-  //     const y = yOffset + rowHeight
-  //     const line = document.createElementNS("http://www.w3.org/2000/svg", "line")
-  //     line.setAttribute("x1", String(0))
-  //     line.setAttribute("y1", String(y))
-  //     line.setAttribute("x2", String(headerWidth))
-  //     line.setAttribute("y2", String(y))
-  //     line.setAttribute("stroke-width", String(CHART_CONFIG.borderWidth))
-  //     line.setAttribute("stroke", String(CHART_CONFIG.borderColor))
-  //     header.value?.appendChild(line)
-  //   }
-  // }
-  //
-  // header.value?.setAttribute("width", String(headerWidth))
-  // header.value?.setAttribute("height", String(height))
 }
 
 const syncScroll = (src: "header" | "chart") => {
