@@ -1,3 +1,5 @@
+mod execution;
+
 use std::collections::HashMap;
 use std::hash::Hash;
 use std::io::{BufReader, Cursor};
@@ -454,7 +456,7 @@ impl JfrRenderer {
     }
 
     #[wasm_bindgen]
-    pub fn on_chart_click(&self, x: f32, y: f32) -> Option<StackTrace> {
+    pub fn on_chart_click(&self) -> Option<StackTrace> {
         match (self.highlighted_thread_id, self.highlighted_sample_idx) {
             (Some(thread_id), Some(sample_idx)) => {
                 self.per_thread_samples.get(&thread_id)

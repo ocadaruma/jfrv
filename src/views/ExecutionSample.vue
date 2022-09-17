@@ -108,11 +108,8 @@ onMounted(async () => {
   renderer.value = new wasm.JfrRenderer()
 })
 
-function onChartClick(e: MouseEvent) {
-  const stackTrace = renderer.value?.on_chart_click(
-      e.clientX - chart.value!.getBoundingClientRect().x,
-      e.clientY - chart.value!.getBoundingClientRect().y)
-  console.log("stack trace: " + stackTrace)
+function onChartClick() {
+  const stackTrace = renderer.value?.on_chart_click()
   highlightedFrames.value = stackTrace?.frames
 }
 
