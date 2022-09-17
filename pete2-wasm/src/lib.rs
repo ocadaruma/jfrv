@@ -394,51 +394,72 @@ impl JfrRenderer {
 
     #[wasm_bindgen]
     pub fn on_chart_mouse_move(&mut self, x: f32, y: f32) {
+        self.on_mouse_move(Some(x), y);
+    }
+
+    #[wasm_bindgen]
+    pub fn on_header_mouse_move(&mut self, x: f32, y: f32) {
+        self.on_mouse_move(None, y);
+    }
+
+    fn on_mouse_move(&mut self, x: Option<f32>, y: f32) {
         let thread_idx = (y / self.row_height) as usize;
         let thread_id = self.threads.get(thread_idx).map(|t| t.id);
-        let mut highlighted_sample = None;
 
+        let mut highlighted_sample = None;
         if let Some(thread_id) = thread_id {
-            if let Some(samples) = self.per_thread_samples.get(&thread_id) {
-                // TODO: binary search
-                for (i, sample) in samples.iter().enumerate() {
-                    let sample_x = self.sample_view_width * (sample.timestamp - self.interval.start_millis) as f32
-                        / self.interval.duration_millis as f32;
-                    let mut right_bound = sample_x + self.chart_config.sample_render_size.width;
-                    if let Some(next_sample) = samples.get(i + 1) {
-                        right_bound = self.sample_view_width * (next_sample.timestamp - self.interval.start_millis) as f32
+            match (self.per_thread_samples.get(&thread_id), x) {
+                (Some(samples), Some(x)) => {
+                    // TODO: binary search
+                    for (i, sample) in samples.iter().enumerate() {
+                        let sample_x = self.sample_view_width * (sample.timestamp - self.interval.start_millis) as f32
                             / self.interval.duration_millis as f32;
-                    }
-                    if sample_x <= x && x <= right_bound {
-                        highlighted_sample = Some(
-                            (i, sample_x, thread_idx as f32 * self.row_height));
-                        break
+                        let mut right_bound = sample_x + self.chart_config.sample_render_size.width;
+                        if let Some(next_sample) = samples.get(i + 1) {
+                            right_bound = self.sample_view_width * (next_sample.timestamp - self.interval.start_millis) as f32
+                                / self.interval.duration_millis as f32;
+                        }
+                        if sample_x <= x && x <= right_bound {
+                            highlighted_sample = Some(
+                                (i, sample_x, thread_idx as f32 * self.row_height));
+                            break
+                        }
                     }
                 }
+                _ => {}
             }
         }
 
         let sample_idx = highlighted_sample.map(|s| s.0);
         if thread_id != self.highlighted_thread_id || sample_idx != self.highlighted_sample_idx {
             Self::clear_overlay();
-            if let Some(ctx) = Self::get_canvas_ctx("chart-overlay") {
-                if thread_id.is_some() {
-                    ctx.set_fill_style(&JsValue::from("#40404040"));
-                    ctx.fill_rect(
+            match (Self::get_canvas_ctx("chart-overlay"), Self::get_canvas_ctx("header-overlay")) {
+                (Some(chart_ctx), Some(header_ctx)) => {
+                    chart_ctx.set_fill_style(&JsValue::from("#40404040"));
+                    header_ctx.set_fill_style(&JsValue::from("#40404040"));
+
+                    chart_ctx.fill_rect(
                         0.0,
                         (thread_idx as f32 * self.row_height) as f64,
-                        ctx.canvas().unwrap().width() as f64,
+                        chart_ctx.canvas().unwrap().width() as f64,
                         self.row_height as f64);
+                    header_ctx.fill_rect(
+                        0.0,
+                        (thread_idx as f32 * self.row_height) as f64,
+                        header_ctx.canvas().unwrap().width() as f64,
+                        self.row_height as f64);
+
+                    if let Some((_, x, y)) = highlighted_sample {
+                        chart_ctx.set_fill_style(&JsValue::from("#f04074"));
+                        chart_ctx.fill_rect(
+                            x as f64,
+                            y as f64,
+                            self.chart_config.sample_render_size.width as f64,
+                            self.row_height as f64
+                        );
+                    }
                 }
-                if let Some((_, x, y)) = highlighted_sample {
-                    ctx.set_fill_style(&JsValue::from("#f04074"));
-                    ctx.fill_rect(
-                        x as f64,
-                        y as f64,
-                        self.chart_config.sample_render_size.width as f64,
-                        self.row_height as f64
-                    );
-                }
+                _ => {}
             }
         }
         self.highlighted_sample_idx = sample_idx;
@@ -446,13 +467,10 @@ impl JfrRenderer {
     }
 
     #[wasm_bindgen]
-    pub fn on_header_mouse_move(&self, x: f32, y: f32) {
-
-    }
-
-    #[wasm_bindgen]
-    pub fn on_mouse_out(&self) {
+    pub fn on_mouse_out(&mut self) {
         Self::clear_overlay();
+        self.highlighted_thread_id = None;
+        self.highlighted_sample_idx = None;
     }
 
     #[wasm_bindgen]
@@ -520,4 +538,10 @@ impl Pool {
 
 struct Rect {
     x: f32, y: f32, width: f32, height: f32, color: Color
+}
+
+struct HitResult {
+    thread_id: Option<i64>,
+    thread_idx: Option<usize>,
+    sample_idx: Option<usize>,
 }
