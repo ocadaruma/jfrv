@@ -8,14 +8,13 @@ crate-type = ["cdylib"]
 
 [dependencies]
 jfrs = { path = "/Users/hokada/develop/src/github.com/ocadaruma/jfrs" }
-three-d = "0.13.0"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 log = "0.4"
 wasm-bindgen = { version = "0.2.82", features = ["serde-serialize"] }
 console_error_panic_hook = "0.1.7"
 console_log = "0.2"
-web-sys = { version = "0.3.59", features = ["Document", "HtmlCollection", "HtmlCanvasElement", "Window"] }
+web-sys = { version = "0.3.59", features = ["Document", "HtmlCollection", "HtmlCanvasElement", "SvgUseElement", "SvgRect", "Text", "Window", "CanvasRenderingContext2d"] }
 serde = { version = "1.0.144", features = ["derive"] }
 tsify = "0.4.0"
-speedy2d = "1.8.0"
+speedy2d = { version = "1.8.0", default-features = false }

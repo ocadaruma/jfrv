@@ -5,9 +5,6 @@
         <router-link to="/execution" class="hover:bg-slate-300 flex-none w-24 h-7 text-sm text-center border-2 rounded border-slate-400">
           <span class="align-middle">execution</span>
         </router-link>
-        <router-link to="/jfr" class="hover:bg-slate-300 flex-none w-24 h-7 text-sm text-center border-2 rounded border-slate-400">
-          <span class="align-middle">jfr</span>
-        </router-link>
       </nav>
     </div>
     <div class="fixed top-12 left-0 right-0 bottom-0">

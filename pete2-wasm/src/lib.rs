@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use std::hash::Hash;
 use std::io::{BufReader, Cursor};
-use std::rc::Rc;
 use jfrs::reader::{JfrReader};
 use jfrs::reader::event::Accessor;
 use jfrs::reader::value_descriptor::ValueDescriptor;
@@ -17,9 +16,10 @@ use log::{info, warn};
 use tsify::Tsify;
 use serde::{Serialize, Deserialize};
 use speedy2d::color::Color;
+use speedy2d::dimen::UVec2;
 use speedy2d::Graphics2D;
 use speedy2d::shape::Rectangle;
-use speedy2d::window::{WindowHandler, WindowHelper, WindowStartupInfo};
+// use speedy2d::window::{WindowHandler, WindowHelper, WindowStartupInfo};
 
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen(start)]
@@ -67,7 +67,7 @@ pub struct SampledThread {
     pub name: String
 }
 
-#[derive(Deserialize, Serialize, Tsify)]
+#[derive(Deserialize, Serialize, Default, Tsify)]
 #[tsify(into_wasm_abi, from_wasm_abi)]
 #[serde(rename_all = "camelCase")]
 pub struct DateInterval {
@@ -108,7 +108,7 @@ pub struct Sample {
     pub stack_trace_id: i32,
 }
 
-#[derive(Deserialize, Serialize, Tsify, Eq, PartialEq, Hash)]
+#[derive(Clone, Deserialize, Serialize, Tsify, Eq, PartialEq, Hash)]
 #[tsify(into_wasm_abi, from_wasm_abi)]
 #[serde(rename_all = "camelCase")]
 pub struct Frame {
@@ -116,7 +116,7 @@ pub struct Frame {
     pub method_name: String,
 }
 
-#[derive(Default, Deserialize, Serialize, Tsify, Eq, PartialEq, Hash)]
+#[derive(Clone, Default, Deserialize, Serialize, Tsify, Eq, PartialEq, Hash)]
 #[tsify(into_wasm_abi, from_wasm_abi)]
 #[serde(rename_all = "camelCase")]
 pub struct StackTrace {
@@ -134,17 +134,29 @@ pub struct Profile {
 }
 
 #[wasm_bindgen]
+#[derive(Default)]
 pub struct JfrRenderer {
+    samples: Vec<Rect>,
+    threads: Vec<SampledThread>,
+    per_thread_samples: HashMap<i64, Vec<Sample>>,
+    sample_view_width: f32,
+    row_height: f32,
+    interval: DateInterval,
+    chart_config: ChartConfig,
+    stack_trace_pool: HashMap<i32, StackTrace>,
+
+    highlighted_thread_id: Option<i64>,
+    highlighted_sample_idx: Option<usize>,
 }
 
 #[wasm_bindgen]
 impl JfrRenderer {
     #[wasm_bindgen(constructor)]
     pub fn new() -> Self {
-        Self {}
+        Self::default()
     }
 
-    pub fn load_jfr(self, bytes: Vec<u8>, chart_config: ChartConfig) -> Option<ThreadProfile> {
+    pub fn load_jfr(&mut self, bytes: Vec<u8>, chart_config: ChartConfig) -> Option<ThreadProfile> {
         info!("passed. byte size: {}", bytes.len());
 
         let mut stack_trace_pool: HashMap<i32, StackTrace> = HashMap::new();
@@ -278,6 +290,14 @@ impl JfrRenderer {
             (max_samples as f32);
         let row_height = chart_config.font_size + (chart_config.margin * 2.0);
 
+        let document = web_sys::window()
+            .and_then(|w| w.document()).unwrap();
+
+        let header = Self::get_element_by_id::<web_sys::SvgGraphicsElement>("header").unwrap();
+        let header_overlay = Self::get_element_by_id::<web_sys::HtmlCanvasElement>("header-overlay").unwrap();
+        let canvas = Self::get_element_by_id::<web_sys::HtmlCanvasElement>("thread-chart-sample-view").unwrap();
+        let chart_overlay = Self::get_element_by_id::<web_sys::HtmlCanvasElement>("chart-overlay").unwrap();
+
         let mut shapes: Vec<Rect> = vec![];
         for (i, thread) in threads.iter().enumerate() {
             if let Some(samples) = per_thread_samples.get(&thread.id) {
@@ -301,40 +321,206 @@ impl JfrRenderer {
                     });
                 }
             }
+
+            let text = document.create_element_ns(Some("http://www.w3.org/2000/svg"), "text").unwrap();
+            let text_node = document.create_text_node(&thread.name);
+            text.set_attribute("x", chart_config.margin.to_string().as_str());
+            // y is the baseline of the text.
+            // so we add fontSize to the current offset.
+            // also add margin to allocate the margin-top.
+            text.set_attribute("y", (row_height * i as f32 + chart_config.font_size + chart_config.margin).to_string().as_str());
+            text.append_child(&text_node);
+            header.append_child(&text);
         }
         info!("Done convert");
 
-        let canvas = web_sys::window()
-            .and_then(|w| w.document())
-            .and_then(|d| d.get_element_by_id("thread-chart-sample-view"))
-            .and_then(|e| e.dyn_into::<web_sys::HtmlCanvasElement>().ok())
-            .unwrap();
-        canvas.set_width((sample_view_width / 2.0) as u32);
-        canvas.set_height(((row_height * threads.len() as f32) / 2.0) as u32);
+        let header_width = header.get_b_box().map(|b| b.width()).unwrap();
 
-        speedy2d::WebCanvas::new_for_id("thread-chart-sample-view", ChartHandler {
-            info: ChartDrawInfo { samples: shapes },
-            scale_factor: 1.0,
-        }).unwrap();
+        header.set_attribute("width", header_width.to_string().as_str());
+        header.set_attribute("height", (row_height * threads.len() as f32).to_string().as_str());
+        header_overlay.set_width(header_width as u32);
+        header_overlay.set_height((row_height * threads.len() as f32) as u32);
+        canvas.set_width(sample_view_width as u32);
+        canvas.set_height((row_height * threads.len() as f32) as u32);
+        chart_overlay.set_width(sample_view_width as u32);
+        chart_overlay.set_height((row_height * threads.len() as f32) as u32);
+
+        for i in 0..threads.len() {
+            let y = row_height * i as f32;
+            if i < threads.len() -1 {
+                let y = y + row_height;
+                let line = document.create_element_ns(Some("http://www.w3.org/2000/svg"), "line").unwrap();
+                line.set_attribute("x1", "0");
+                line.set_attribute("y1", y.to_string().as_str());
+                line.set_attribute("x2", header_width.to_string().as_str());
+                line.set_attribute("y2", y.to_string().as_str());
+                line.set_attribute("stroke-width", chart_config.border_width.to_string().as_str());
+                line.set_attribute("stroke", chart_config.border_color.as_str());
+                header.append_child(&line);
+            }
+        }
+
+        self.samples = shapes;
+        self.threads = threads;
+        self.sample_view_width = sample_view_width;
+        self.row_height = row_height;
+        self.per_thread_samples = per_thread_samples;
+        self.interval = interval;
+        self.chart_config = chart_config;
+        self.stack_trace_pool = stack_trace_pool;
+
+        // speedy2d::WebCanvas::new_for_id("thread-chart-sample-view", ChartHandler {
+        //     info: ChartDrawInfo { samples: shapes },
+        //     scale_factor: 1.0,
+        // }).unwrap();
         info!("Done render");
 
         info!("event_count: {}", event_count);
-        let profile = ThreadProfile {
-            interval,
-            samples: per_thread_samples,
-            max_sample_num: max_samples,
-            threads,
-            stack_trace_pool,
-            thread_state_pool
-        };
+        // let profile = ThreadProfile {
+        //     interval,
+        //     samples: per_thread_samples,
+        //     max_sample_num: max_samples,
+        //     threads,
+        //     stack_trace_pool,
+        //     thread_state_pool
+        // };
 
-        // let profile = Rc::new(profile);
-        // speedy2d::WebCanvas::new_for_id("thread-chart-sample-view", ChartHandler {
-        //     canvas: Rc::new(canvas),
-        //     profile: profile.clone(),
-        // }).unwrap();
+        // Some(profile)
+        None
+    }
 
-        Some(profile)
+    #[wasm_bindgen]
+    pub fn render(&self) {
+        let mut renderer = speedy2d::GLRenderer::new_for_web_canvas_by_id(
+            (self.sample_view_width as u32, (self.row_height * self.threads.len() as f32) as u32),
+            "thread-chart-sample-view").unwrap();
+        renderer.draw_frame(|graphics| {
+            graphics.clear_screen(Color::from_hex_rgb(0xf2f5f9));
+            // let f = self.scale_factor as f32;
+
+            for sample in self.samples.iter() {
+                graphics.draw_rectangle(Rectangle::from_tuples(
+                    (sample.x, sample.y), (sample.x + sample.width, sample.y + sample.height)
+                ), sample.color);
+            }
+        });
+    }
+
+    #[wasm_bindgen]
+    pub fn clear(&self) {
+        let mut renderer = speedy2d::GLRenderer::new_for_web_canvas_by_id(
+            (self.sample_view_width as u32, (self.row_height * self.threads.len() as f32) as u32),
+            "thread-chart-sample-view").unwrap();
+        renderer.draw_frame(|g| {
+           g.clear_screen(Color::WHITE);
+        });
+    }
+
+    #[wasm_bindgen]
+    pub fn on_chart_mouse_move(&mut self, x: f32, y: f32) {
+        let thread_idx = (y / self.row_height) as usize;
+        let thread_id = self.threads.get(thread_idx).map(|t| t.id);
+        let mut highlighted_sample = None;
+
+        if let Some(thread_id) = thread_id {
+            if let Some(samples) = self.per_thread_samples.get(&thread_id) {
+                // TODO: binary search
+                for (i, sample) in samples.iter().enumerate() {
+                    let sample_x = self.sample_view_width * (sample.timestamp - self.interval.start_millis) as f32
+                        / self.interval.duration_millis as f32;
+                    let mut right_bound = sample_x + self.chart_config.sample_render_size.width;
+                    if let Some(next_sample) = samples.get(i + 1) {
+                        right_bound = self.sample_view_width * (next_sample.timestamp - self.interval.start_millis) as f32
+                            / self.interval.duration_millis as f32;
+                    }
+                    if sample_x <= x && x <= right_bound {
+                        highlighted_sample = Some(
+                            (i, sample_x, thread_idx as f32 * self.row_height));
+                        break
+                    }
+                }
+            }
+        }
+
+        let sample_idx = highlighted_sample.map(|s| s.0);
+        if thread_id != self.highlighted_thread_id || sample_idx != self.highlighted_sample_idx {
+            Self::clear_overlay();
+            if let Some(ctx) = Self::get_canvas_ctx("chart-overlay") {
+                if thread_id.is_some() {
+                    ctx.set_fill_style(&JsValue::from("#40404040"));
+                    ctx.fill_rect(
+                        0.0,
+                        (thread_idx as f32 * self.row_height) as f64,
+                        ctx.canvas().unwrap().width() as f64,
+                        self.row_height as f64);
+                }
+                if let Some((_, x, y)) = highlighted_sample {
+                    ctx.set_fill_style(&JsValue::from("#f04074"));
+                    ctx.fill_rect(
+                        x as f64,
+                        y as f64,
+                        self.chart_config.sample_render_size.width as f64,
+                        self.row_height as f64
+                    );
+                }
+            }
+        }
+        self.highlighted_sample_idx = sample_idx;
+        self.highlighted_thread_id = thread_id;
+    }
+
+    #[wasm_bindgen]
+    pub fn on_header_mouse_move(&self, x: f32, y: f32) {
+
+    }
+
+    #[wasm_bindgen]
+    pub fn on_mouse_out(&self) {
+        Self::clear_overlay();
+    }
+
+    #[wasm_bindgen]
+    pub fn on_chart_click(&self, x: f32, y: f32) -> Option<StackTrace> {
+        match (self.highlighted_thread_id, self.highlighted_sample_idx) {
+            (Some(thread_id), Some(sample_idx)) => {
+                self.per_thread_samples.get(&thread_id)
+                    .and_then(|s| s.get(sample_idx))
+                    .and_then(|s| self.stack_trace_pool.get(&s.stack_trace_id))
+                    .cloned()
+            },
+            _ => None
+        }
+    }
+
+    fn clear_overlay() {
+        Self::clear_canvas("header-overlay");
+        Self::clear_canvas("chart-overlay");
+    }
+
+    fn get_element_by_id<T: JsCast>(id: &str) -> Option<T> {
+        web_sys::window()
+            .and_then(|w| w.document())
+            .and_then(|d| d.get_element_by_id(id))
+            .and_then(|e| e.dyn_into::<T>().ok())
+    }
+
+    fn clear_canvas(id: &str) {
+        let canvas = Self::get_element_by_id::<web_sys::HtmlCanvasElement>(id);
+        if let Some(canvas) = canvas {
+            let mut ctx = canvas
+                .get_context("2d").ok()
+                .flatten()
+                .and_then(|c| c.dyn_into::<web_sys::CanvasRenderingContext2d>().ok())
+                .unwrap();
+            ctx.clear_rect(0.0, 0.0, canvas.width() as f64, canvas.height() as f64);
+        }
+    }
+
+    fn get_canvas_ctx(id: &str) -> Option<web_sys::CanvasRenderingContext2d> {
+        Self::get_element_by_id::<web_sys::HtmlCanvasElement>(id)
+            .and_then(|c| c.get_context("2d").ok())
+            .flatten()
+            .and_then(|c| c.dyn_into::<web_sys::CanvasRenderingContext2d>().ok())
     }
 }
 
@@ -369,19 +555,28 @@ struct ChartHandler {
     scale_factor: f64,
 }
 
-impl WindowHandler for ChartHandler {
-    fn on_start(&mut self, helper: &mut WindowHelper<()>, info: WindowStartupInfo) {
-        self.scale_factor = info.scale_factor();
-    }
-
-    fn on_draw(&mut self, helper: &mut WindowHelper<()>, graphics: &mut Graphics2D) {
-        graphics.clear_screen(Color::from_hex_rgb(0xf2f5f9));
-        let f = self.scale_factor as f32;
-
-        for sample in self.info.samples.iter() {
-            graphics.draw_rectangle(Rectangle::from_tuples(
-                (sample.x, sample.y), (sample.x + sample.width, sample.y + sample.height)
-            ), sample.color);
-        }
-    }
-}
+// impl WindowHandler for ChartHandler {
+//     fn on_start(&mut self, helper: &mut WindowHelper<()>, info: WindowStartupInfo) {
+//         self.scale_factor = info.scale_factor();
+//     }
+//
+//     fn on_draw(&mut self, helper: &mut WindowHelper<()>, graphics: &mut Graphics2D) {
+//         info!("on_draw requested");
+//         // graphics.clear_screen(Color::from_hex_rgb(0xf2f5f9));
+//         // let f = self.scale_factor as f32;
+//         //
+//         // for sample in self.info.samples.iter() {
+//         //     graphics.draw_rectangle(Rectangle::from_tuples(
+//         //         (sample.x, sample.y), (sample.x + sample.width, sample.y + sample.height)
+//         //     ), sample.color);
+//         // }
+//     }
+//
+//     fn on_resize(&mut self, helper: &mut WindowHelper<()>, size_pixels: UVec2) {
+//         info!("on_resize requested: {:?}", size_pixels);
+//     }
+//
+//     fn on_scale_factor_changed(&mut self, helper: &mut WindowHelper<()>, scale_factor: f64) {
+//         info!("on_scale_factor_changed requested: {:?}", scale_factor);
+//     }
+// }
