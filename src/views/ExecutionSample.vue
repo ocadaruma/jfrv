@@ -7,7 +7,7 @@
   <div class="fixed top-12 left-0 right-0 h-12 bg-neutral-100 z-40 border-b border-slate-400 p-2">
     <button class="hover:bg-slate-300 w-24 h-7 text-sm text-center border-2 rounded border-slate-400" @click="open">open file</button>
     <span class="h-7 ml-2">thread name:</span>
-    <input class="h-7" type="text" placeholder="regex">
+    <input class="h-7" type="text" placeholder="regex" v-model="filterRegex" @change="onFilterChange">
     <input v-bind="getInputProps()">
     <div class="flex flex-col space-x-2">
     </div>
@@ -50,7 +50,7 @@
                       class="bg-slate-100"
                       width="0"
                       height="0"/>
-              <div v-if="!fileLoaded">
+              <div v-if="!state">
                 <p v-if="isDragActive">Drop here ...</p>
                 <p v-else>Drag & drop OR press "open file" to select JFR file</p>
               </div>
@@ -67,6 +67,8 @@
       </pane>
     </splitpanes>
   </div>
+  <div class="fixed w-72 h-24 bg-neutral-200 border-neutral-500 p-2 border-2 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"
+       v-if="state === 'loading'">Loading...</div>
 </template>
 
 <script lang="ts" setup>
@@ -95,11 +97,11 @@ const CHART_CONFIG: ChartConfig = {
       width: 6,
       height: 8
     },
-    backgroundRgbHex: 0xf2f5f9
+    backgroundRgbHex: 0xf5f5f5
   },
   threadStateColorConfig: {
     stateRunnableRgbHex: 0x6cba1e,
-    stateSleepingRgbHex: 0x8d3eee,
+    stateSleepingRgbHex: 0x8554c2,
     stateUnknownRgbHex: 0x6f6d72
   },
   overlayConfig: {
@@ -109,13 +111,14 @@ const CHART_CONFIG: ChartConfig = {
 }
 
 const renderer = ref<Renderer>()
-const fileLoaded = ref(false)
 
 const highlightedFrames = ref<StackFrame[]>()
 const headerPane = ref<ComponentPublicInstance>()
 const chartPane = ref<ComponentPublicInstance>()
 const header = ref<SVGGraphicsElement>()
 const chart = ref<HTMLCanvasElement>()
+const filterRegex = ref<string>()
+const state = ref<"loading" | "loaded">()
 
 const {
   getRootProps,
@@ -134,6 +137,22 @@ onMounted(async () => {
   const wasm = await import("../../pete2-wasm/pkg")
   renderer.value = new wasm.Renderer(CHART_CONFIG)
 })
+
+function onFilterChange() {
+  if (!state.value) {
+    return
+  }
+
+  if (filterRegex.value !== undefined && filterRegex.value?.length > 0) {
+    renderer.value?.apply_filter({
+      threadNameRegex: filterRegex.value
+    })
+  } else {
+    renderer.value?.apply_filter({
+      threadNameRegex: null
+    })
+  }
+}
 
 function onChartClick() {
   const stackTrace = renderer.value?.on_chart_click()
@@ -157,13 +176,20 @@ function onMouseOut() {
 }
 
 async function openFile(acceptedFiles: File[], rejectReasons: FileRejectReason[]) {
+  state.value = "loading"
   const buf = await acceptedFiles[0].arrayBuffer()
   const data = new Uint8Array(buf)
 
-  renderer.value?.initialize(data)
-  renderer.value?.render()
+  filterRegex.value = undefined;
+  try {
+    renderer.value?.initialize(data)
+    renderer.value?.render()
+  } catch (e) {
+    state.value = undefined
+    throw e
+  }
 
-  fileLoaded.value = true
+  state.value = "loaded"
 }
 
 const syncScroll = (src: "header" | "chart") => {

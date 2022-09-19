@@ -2,6 +2,8 @@
 
 Yet another Java Flight Recorder file viewer
 
+<img alt="screenshot" src="./img/screenshot.png" width="400">
+
 ## Motivation
 
 There are various profiling tools for Java applications.

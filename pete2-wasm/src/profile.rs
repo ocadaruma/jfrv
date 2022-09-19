@@ -15,7 +15,7 @@ pub struct StackFrame {
     pub method_name: String,
 }
 
-#[derive(Default, Deserialize, Serialize, Tsify)]
+#[derive(Clone, Default, Deserialize, Serialize, Tsify)]
 #[tsify(into_wasm_abi, from_wasm_abi)]
 #[serde(rename_all = "camelCase")]
 pub struct Thread {

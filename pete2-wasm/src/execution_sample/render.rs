@@ -1,13 +1,15 @@
 //! Execution sample chart renderer.
 
-use crate::execution_sample::Profile;
+use crate::execution_sample::{Filter, Profile};
 use crate::profile::{StackTrace, ThreadState};
 use crate::web::{Canvas, Document, Svg};
 use crate::Dimension;
 use crate::Result;
+use log::debug;
 
 use serde::{Deserialize, Serialize};
 use speedy2d::color::Color;
+use speedy2d::dimen::UVec2;
 use speedy2d::shape::Rectangle;
 use speedy2d::GLRenderer;
 use tsify::Tsify;
@@ -122,11 +124,10 @@ impl Renderer {
     pub fn render(&self) -> Result<()> {
         let document = &self.document;
 
-        let chart_height = self.row_height() * self.profile.threads.len() as f32;
+        let chart_height = self.row_height() * self.profile.threads().len() as f32;
+        debug!("start render");
 
         self.header.clear();
-        self.chart.set_width(self.sample_view_width() as u32);
-        self.chart.set_height(chart_height as u32);
         self.chart_overlay
             .raw
             .set_width(self.sample_view_width() as u32);
@@ -136,13 +137,16 @@ impl Renderer {
             self.chart_config.sample_view_config.element_id.as_str(),
         )
         .map_err(Self::map_js_value)?;
+        self.chart.set_width(self.sample_view_width() as u32);
+        self.chart.set_height(chart_height as u32);
+        debug!("start draw frame");
 
         gl_renderer.draw_frame::<_, Result<()>>(|g| {
             g.clear_screen(Color::from_hex_rgb(
                 self.chart_config.sample_view_config.background_rgb_hex,
             ));
 
-            for (i, thread) in self.profile.threads.iter().enumerate() {
+            for (i, thread) in self.profile.threads().iter().enumerate() {
                 if let Some(samples) = self.profile.per_thread_samples.get(&thread.os_thread_id) {
                     let y = self.row_height() * i as f32
                         + (self.row_height()
@@ -224,8 +228,9 @@ impl Renderer {
         self.header_overlay.raw.set_width(header_width as u32);
         self.header_overlay.raw.set_height(chart_height as u32);
 
+        debug!("start render border");
         // render borders based on the header width retrieved from bbox
-        for i in 0..(self.profile.threads.len() - 1) {
+        for i in 0..(self.profile.threads().len() as isize - 1) {
             let y = (self.row_height() + self.row_height() * i as f32).to_string();
             let line = document
                 .raw
@@ -254,6 +259,13 @@ impl Renderer {
         }
 
         Ok(())
+    }
+
+    pub fn apply_filter(&mut self, filter: Filter) -> Result<()> {
+        self.profile
+            .apply_filter(filter)
+            .map_err(Self::map_js_value)?;
+        self.render()
     }
 
     pub fn on_chart_mouse_move(&mut self, x: f32, y: f32) {
@@ -289,7 +301,11 @@ impl Renderer {
 
     fn on_mouse_move(&mut self, x: Option<f32>, y: f32) {
         let thread_idx = (y / self.row_height()) as usize;
-        let thread_id = self.profile.threads.get(thread_idx).map(|t| t.os_thread_id);
+        let thread_id = self
+            .profile
+            .threads()
+            .get(thread_idx)
+            .map(|t| t.os_thread_id);
 
         let mut highlighted_sample = None;
         if let Some(thread_id) = thread_id {
