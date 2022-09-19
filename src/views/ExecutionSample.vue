@@ -4,13 +4,15 @@
   <!-- may be straightforward. However, if we do so, we found that chart area's bottom pane (stacktrace view)'s -->
   <!-- scroll calculation will be broken. -->
   <!-- TODO: To fix, we need to check how splitpane works -->
-  <div class="fixed top-12 left-0 right-0 h-10 bg-neutral-100 z-40 border-b border-slate-400 p-2">
-    <button class="hover:bg-slate-300 w-24 h-6 text-sm text-center border-2 rounded border-slate-400" @click="open">open file</button>
+  <div class="fixed top-12 left-0 right-0 h-12 bg-neutral-100 z-40 border-b border-slate-400 p-2">
+    <button class="hover:bg-slate-300 w-24 h-7 text-sm text-center border-2 rounded border-slate-400" @click="open">open file</button>
+    <span class="h-7 ml-2">thread name:</span>
+    <input class="h-7" type="text" placeholder="regex">
     <input v-bind="getInputProps()">
     <div class="flex flex-col space-x-2">
     </div>
   </div>
-  <div class="absolute top-10 right-0 left-0 bottom-0">
+  <div class="absolute top-12 right-0 left-0 bottom-0">
     <splitpanes class="default-theme text-sm" horizontal v-bind="getRootProps()">
       <pane>
         <div class="w-full h-full">
@@ -70,29 +72,46 @@
 <script lang="ts" setup>
 import { Splitpanes, Pane } from "splitpanes";
 import {
-  JfrRenderer,
-  Frame,
-  ChartConfig,
+  Renderer,
+  ChartConfig, StackFrame,
 } from "../../pete2-wasm/pkg";
 import {ComponentPublicInstance, onMounted, ref} from "vue";
 import {FileRejectReason, useDropzone} from "vue3-dropzone";
 import 'splitpanes/dist/splitpanes.css';
 
 const CHART_CONFIG: ChartConfig = {
+  defaultMargin: 1,
   fontSize: 14, // 0.875rem
-  borderWidth: 1,
-  borderColor: "#707070",
-  margin: 1,
-  sampleRenderSize: {
-    width: 6,
-    height: 8,
+  headerConfig: {
+    borderWidth: 1,
+    borderColorRgbHex: 0x707070,
+    elementId: "header",
+    overlayElementId: "header-overlay"
+  },
+  sampleViewConfig: {
+    elementId: "thread-chart-sample-view",
+    overlayElementId: "chart-overlay",
+    sampleRenderSize: {
+      width: 6,
+      height: 8
+    },
+    backgroundRgbHex: 0xf2f5f9
+  },
+  threadStateColorConfig: {
+    stateRunnableRgbHex: 0x6cba1e,
+    stateSleepingRgbHex: 0x8d3eee,
+    stateUnknownRgbHex: 0x6f6d72
+  },
+  overlayConfig: {
+    rowHighlightArgbHex: 0x40404040,
+    sampleHighlightRgbHex: 0xf04074
   }
 }
 
-const renderer = ref<JfrRenderer>()
+const renderer = ref<Renderer>()
 const fileLoaded = ref(false)
 
-const highlightedFrames = ref<Frame[]>()
+const highlightedFrames = ref<StackFrame[]>()
 const headerPane = ref<ComponentPublicInstance>()
 const chartPane = ref<ComponentPublicInstance>()
 const header = ref<SVGGraphicsElement>()
@@ -113,7 +132,7 @@ const {
 
 onMounted(async () => {
   const wasm = await import("../../pete2-wasm/pkg")
-  renderer.value = new wasm.JfrRenderer()
+  renderer.value = new wasm.Renderer(CHART_CONFIG)
 })
 
 function onChartClick() {
@@ -141,7 +160,7 @@ async function openFile(acceptedFiles: File[], rejectReasons: FileRejectReason[]
   const buf = await acceptedFiles[0].arrayBuffer()
   const data = new Uint8Array(buf)
 
-  renderer.value?.load_jfr(data, CHART_CONFIG)
+  renderer.value?.initialize(data)
   renderer.value?.render()
 
   fileLoaded.value = true

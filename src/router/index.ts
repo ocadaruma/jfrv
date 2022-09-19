@@ -4,11 +4,11 @@ import ExecutionSample from '../views/ExecutionSample.vue'
 const routes: Array<RouteRecordRaw> = [
   {
     path: '/',
-    redirect: '/execution'
+    redirect: '/execution-sample'
   },
   {
-    path: '/execution',
-    name: 'execution',
+    path: '/execution-sample',
+    name: 'execution-sample',
     component: ExecutionSample
   }
 ]
