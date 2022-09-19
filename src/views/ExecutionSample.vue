@@ -76,7 +76,7 @@ import { Splitpanes, Pane } from "splitpanes";
 import {
   Renderer,
   ChartConfig, StackFrame,
-} from "../../pete2-wasm/pkg";
+} from "../../jfrv-wasm/pkg";
 import {ComponentPublicInstance, onMounted, ref} from "vue";
 import {FileRejectReason, useDropzone} from "vue3-dropzone";
 import 'splitpanes/dist/splitpanes.css';
@@ -134,7 +134,7 @@ const {
 })
 
 onMounted(async () => {
-  const wasm = await import("../../pete2-wasm/pkg")
+  const wasm = await import("../../jfrv-wasm/pkg")
   renderer.value = new wasm.Renderer(CHART_CONFIG)
 })
 

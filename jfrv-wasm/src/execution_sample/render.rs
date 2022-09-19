@@ -9,7 +9,6 @@ use log::debug;
 
 use serde::{Deserialize, Serialize};
 use speedy2d::color::Color;
-use speedy2d::dimen::UVec2;
 use speedy2d::shape::Rectangle;
 use speedy2d::GLRenderer;
 use tsify::Tsify;

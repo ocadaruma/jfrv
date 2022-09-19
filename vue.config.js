@@ -9,9 +9,9 @@ module.exports = defineConfig({
       .use(WasmPackPlugin)
       .init(Plugin =>
         new Plugin({
-          crateDirectory: path.resolve(__dirname, "pete2-wasm"),
+          crateDirectory: path.resolve(__dirname, "jfrv-wasm"),
           // https://github.com/wasm-tool/wasm-pack-plugin/issues/93
-          outDir: path.resolve(__dirname, "pete2-wasm/pkg"),
+          outDir: path.resolve(__dirname, "jfrv-wasm/pkg"),
           // temporary
           forceMode: "production"
         })
