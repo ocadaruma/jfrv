@@ -4,6 +4,11 @@ Yet another Java Flight Recorder file viewer
 
 <img alt="screenshot" src="./img/screenshot.png" width="400">
 
+## Features
+
+- Visualize execution samples
+  * In async-profiler, corresponds to `cpu` and `wallclock` profiles
+
 ## Motivation
 
 There are various profiling tools for Java applications.
