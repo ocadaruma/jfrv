@@ -21,5 +21,6 @@ module.exports = defineConfig({
     experiments: {
       asyncWebAssembly: true
     }
-  }
+  },
+  publicPath: process.env.NODE_ENV === "production" ? "/jfrv/" : "/"
 })
