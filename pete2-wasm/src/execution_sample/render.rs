@@ -3,9 +3,9 @@
 use crate::execution_sample::Profile;
 use crate::profile::{StackTrace, ThreadState};
 use crate::web::{Canvas, Document, Svg};
+use crate::Dimension;
 use crate::Result;
-use crate::{Dimension, Error};
-use log::info;
+
 use serde::{Deserialize, Serialize};
 use speedy2d::color::Color;
 use speedy2d::shape::Rectangle;
@@ -152,7 +152,7 @@ impl Renderer {
                                 .sample_render_size
                                 .height)
                             / 2.0;
-                    for (j, sample) in samples.iter().enumerate() {
+                    for (_j, sample) in samples.iter().enumerate() {
                         let x = self.sample_view_width()
                             * (sample.timestamp - self.profile.interval.start_millis) as f32
                             / self.profile.interval.duration_millis() as f32;
@@ -260,7 +260,7 @@ impl Renderer {
         self.on_mouse_move(Some(x), y)
     }
 
-    pub fn on_header_mouse_move(&mut self, x: f32, y: f32) {
+    pub fn on_header_mouse_move(&mut self, _x: f32, y: f32) {
         self.on_mouse_move(None, y)
     }
 
@@ -293,33 +293,29 @@ impl Renderer {
 
         let mut highlighted_sample = None;
         if let Some(thread_id) = thread_id {
-            match (self.profile.per_thread_samples.get(&thread_id), x) {
-                (Some(samples), Some(x)) => {
-                    // TODO: binary search
-                    for (i, sample) in samples.iter().enumerate() {
-                        let sample_x = self.sample_view_width()
-                            * (sample.timestamp - self.profile.interval.start_millis) as f32
+            if let (Some(samples), Some(x)) = (self.profile.per_thread_samples.get(&thread_id), x) {
+                // TODO: binary search
+                for (i, sample) in samples.iter().enumerate() {
+                    let sample_x = self.sample_view_width()
+                        * (sample.timestamp - self.profile.interval.start_millis) as f32
+                        / self.profile.interval.duration_millis() as f32;
+                    let mut right_bound = sample_x
+                        + self
+                            .chart_config
+                            .sample_view_config
+                            .sample_render_size
+                            .width;
+                    if let Some(next_sample) = samples.get(i + 1) {
+                        right_bound = self.sample_view_width()
+                            * (next_sample.timestamp - self.profile.interval.start_millis) as f32
                             / self.profile.interval.duration_millis() as f32;
-                        let mut right_bound = sample_x
-                            + self
-                                .chart_config
-                                .sample_view_config
-                                .sample_render_size
-                                .width;
-                        if let Some(next_sample) = samples.get(i + 1) {
-                            right_bound = self.sample_view_width()
-                                * (next_sample.timestamp - self.profile.interval.start_millis)
-                                    as f32
-                                / self.profile.interval.duration_millis() as f32;
-                        }
-                        if sample_x <= x && x <= right_bound {
-                            highlighted_sample =
-                                Some((i, sample_x, thread_idx as f32 * self.row_height()));
-                            break;
-                        }
+                    }
+                    if sample_x <= x && x <= right_bound {
+                        highlighted_sample =
+                            Some((i, sample_x, thread_idx as f32 * self.row_height()));
+                        break;
                     }
                 }
-                _ => {}
             }
         }
 

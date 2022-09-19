@@ -1,8 +1,7 @@
 //! Contains utility to access browser elements
 
 use crate::Result;
-use wasm_bindgen::{JsCast, JsError, JsValue};
-use web_sys::{Element, SvgRect, Text};
+use wasm_bindgen::{JsCast, JsValue};
 
 pub struct Document {
     pub raw: web_sys::Document,
@@ -13,12 +12,12 @@ impl Document {
         web_sys::window()
             .and_then(|w| w.document())
             .map(|raw| Self { raw })
-            .ok_or(JsValue::from_str("Failed to get document"))
+            .ok_or_else(|| JsValue::from_str("Failed to get document"))
     }
 
     pub fn get_canvas_by_id(&self, id: &str) -> Result<Canvas> {
         self.get_element_by_id::<web_sys::HtmlCanvasElement>(id)
-            .and_then(|inner| Canvas::try_new(inner))
+            .and_then(Canvas::try_new)
     }
 
     pub fn get_raw_canvas_by_id(&self, id: &str) -> Result<web_sys::HtmlCanvasElement> {
@@ -27,16 +26,14 @@ impl Document {
 
     pub fn get_svg_by_id(&self, id: &str) -> Result<Svg> {
         self.get_element_by_id::<web_sys::SvgGraphicsElement>(id)
-            .map(|inner| Svg { raw: inner })
+            .map(|raw| Svg { raw })
     }
 
     fn get_element_by_id<T: JsCast>(&self, id: &str) -> Result<T> {
         self.raw
             .get_element_by_id(id)
             .and_then(|e| e.dyn_into::<T>().ok())
-            .ok_or(JsValue::from_str(
-                format!("Element with id {} not found", id).as_str(),
-            ))
+            .ok_or_else(|| JsValue::from_str(format!("Element with id {} not found", id).as_str()))
     }
 }
 
@@ -50,7 +47,7 @@ impl Canvas {
         Ok(Self {
             ctx: raw
                 .get_context("2d")
-                .and_then(|c| c.ok_or(JsValue::from_str("Failed to get context 2d")))
+                .and_then(|c| c.ok_or_else(|| JsValue::from_str("Failed to get context 2d")))
                 .map(|o| o.dyn_into::<web_sys::CanvasRenderingContext2d>().unwrap())?,
             raw,
         })

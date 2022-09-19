@@ -4,8 +4,8 @@
 use serde::{Deserialize, Serialize};
 use tsify::Tsify;
 
-pub const THREAD_STATE_RUNNING: &'static str = "STATE_RUNNABLE";
-pub const THREAD_STATE_SLEEPING: &'static str = "STATE_SLEEPING";
+pub const THREAD_STATE_RUNNING: &str = "STATE_RUNNABLE";
+pub const THREAD_STATE_SLEEPING: &str = "STATE_SLEEPING";
 
 #[derive(Clone, Deserialize, Serialize, Tsify)]
 #[tsify(into_wasm_abi, from_wasm_abi)]

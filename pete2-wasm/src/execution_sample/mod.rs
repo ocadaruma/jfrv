@@ -7,17 +7,16 @@ pub mod render;
 use crate::profile::{
     ConstantPoolKey, ExecutionSample, StackFrame, StackTrace, Thread, ThreadState,
 };
-use crate::{Dimension, TimeInterval};
+use crate::TimeInterval;
 use anyhow::{anyhow, Result};
 use jfrs::reader::event::Accessor;
 use jfrs::reader::value_descriptor::ValueDescriptor;
 use jfrs::reader::{Chunk, JfrReader};
 use log::info;
 use rustc_hash::FxHashMap;
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::hash_map::Entry;
+
 use std::io::Cursor;
-use tsify::Tsify;
 
 #[derive(Default)]
 pub struct Profile {
@@ -59,24 +58,18 @@ impl Profile {
                 let thread_accessor = event
                     .value()
                     .get_field("sampledThread")
-                    .ok_or(anyhow!("Failed to get sampled thread"))?;
+                    .ok_or_else(|| anyhow!("Failed to get sampled thread"))?;
                 let os_thread_id = thread_accessor
                     .get_field("osThreadId")
                     .and_then(|i| i64::try_from(i.value).ok())
-                    .ok_or(anyhow!("Failed to get osThreadId"))?;
+                    .ok_or_else(|| anyhow!("Failed to get osThreadId"))?;
 
-                if !stack_trace_pool.contains_key(&stack_trace_key) {
-                    stack_trace_pool.insert(
-                        stack_trace_key,
-                        Self::parse_stack_trace(&stack_trace_key, &chunk)?,
-                    );
+                if let Entry::Vacant(e) = stack_trace_pool.entry(stack_trace_key) {
+                    e.insert(Self::parse_stack_trace(&stack_trace_key, &chunk)?);
                 }
                 // FIXME: Thread name doesn't show correctly if same os_thread_id is reused
-                if !thread_pool.contains_key(&os_thread_id) {
-                    thread_pool.insert(
-                        os_thread_id,
-                        Self::parse_thread(os_thread_id, &thread_accessor)?,
-                    );
+                if let Entry::Vacant(e) = thread_pool.entry(os_thread_id) {
+                    e.insert(Self::parse_thread(os_thread_id, &thread_accessor)?);
                 }
                 // we can't use or_insert_with because parse_thread_state may fail
                 let state = match thread_state_pool.get(&thread_state_key) {
@@ -93,11 +86,11 @@ impl Profile {
                     .value()
                     .get_field("startTime")
                     .and_then(|s| i64::try_from(s.value).ok())
-                    .ok_or(anyhow!("Failed to get startTime"))?;
+                    .ok_or_else(|| anyhow!("Failed to get startTime"))?;
 
-                let mut samples = per_thread_samples
+                let samples = per_thread_samples
                     .entry(os_thread_id)
-                    .or_insert_with(|| vec![]);
+                    .or_insert_with(Vec::new);
                 samples.push(ExecutionSample {
                     timestamp,
                     state,
@@ -119,6 +112,8 @@ impl Profile {
         }
         self.column_count = column_count;
         self.interval = interval;
+
+        info!("Loaded {} events", event_count);
 
         Ok(())
     }
@@ -148,7 +143,7 @@ impl Profile {
         for f in accessor
             .get_field("frames")
             .and_then(|f| f.as_iter())
-            .ok_or(anyhow!("failed to get stack frames"))?
+            .ok_or_else(|| anyhow!("failed to get stack frames"))?
         {
             frames.push(StackFrame {
                 type_name: f
@@ -157,14 +152,14 @@ impl Profile {
                     .and_then(|t| t.get_field("name"))
                     .and_then(|n| n.get_field("string"))
                     .and_then(|s| <&str>::try_from(s.value).ok())
-                    .ok_or(anyhow!("failed to get type name"))?
+                    .ok_or_else(|| anyhow!("failed to get type name"))?
                     .to_string(),
                 method_name: f
                     .get_field("method")
                     .and_then(|t| t.get_field("name"))
                     .and_then(|n| n.get_field("string"))
                     .and_then(|s| <&str>::try_from(s.value).ok())
-                    .ok_or(anyhow!("failed to get method name"))?
+                    .ok_or_else(|| anyhow!("failed to get method name"))?
                     .to_string(),
             });
         }
@@ -183,7 +178,7 @@ impl Profile {
             .get_field("name")
             .and_then(|s| <&str>::try_from(s.value).ok())
             .map(|s| s.to_string())
-            .ok_or(anyhow!("failed to get thread state"))
+            .ok_or_else(|| anyhow!("failed to get thread state"))
     }
 
     fn parse_thread(os_thread_id: i64, accessor: &Accessor<'_>) -> Result<Thread> {

@@ -4,24 +4,13 @@ pub mod profile;
 #[cfg(target_arch = "wasm32")]
 mod web;
 
-use jfrs::reader::event::Accessor;
-use jfrs::reader::value_descriptor::ValueDescriptor;
-use jfrs::reader::JfrReader;
-use std::collections::HashMap;
-use std::hash::Hash;
-use std::io::{BufReader, Cursor};
 // Entry point for wasm
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
-use wasm_bindgen::JsCast;
 
-use log::{info, warn};
+use log::info;
 use serde::{Deserialize, Serialize};
-use speedy2d::color::Color;
-use speedy2d::dimen::UVec2;
-use speedy2d::shape::Rectangle;
-use speedy2d::Graphics2D;
-use thiserror::Error;
+
 use tsify::Tsify;
 
 type Result<T> = std::result::Result<T, JsValue>;
