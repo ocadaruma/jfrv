@@ -1,6 +1,8 @@
 # jfrv
 
-Yet another Java Flight Recorder file viewer
+Yet another Java Flight Recorder file viewer.
+
+Live demo: https://ocadaruma.github.io/jfrv
 
 <img alt="screenshot" src="./img/screenshot.png" width="400">
 
@@ -8,6 +10,10 @@ Yet another Java Flight Recorder file viewer
 
 - Visualize execution samples
   * In async-profiler, corresponds to `cpu` and `wallclock` profiles
+
+### Runs on browsers
+
+jfrv parses JFR files 100% on browsers using wasm-compiled Rust JFR reader [jfrs](https://github.com/ocadaruma/jfrs).
 
 ## Motivation
 
@@ -24,6 +30,11 @@ performance issues (particularly when the issue is due to contention between the
 However, existing JFR viewers seem to be not suitable for visualizing async-profiler-recorded files so I needed another tool to
 generate threads timeline.
 
-## Runs on browsers
+## Build
 
-jfrv parses JFR files 100% on browsers using wasm-compiled Rust JFR reader [jfrs](https://github.com/ocadaruma/jfrs).
+To build and run jfrv locally, execute below commands and visit visit `localhost:8080`.
+
+```
+$ yarn install
+$ yarn serve
+```

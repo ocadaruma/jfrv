@@ -6,6 +6,7 @@
   <!-- TODO: To fix, we need to check how splitpane works -->
   <div class="fixed top-12 left-0 right-0 h-12 bg-neutral-100 z-40 border-b border-slate-400 p-2">
     <button class="hover:bg-slate-300 w-24 h-7 text-sm text-center border-2 rounded border-slate-400" @click="open">open file</button>
+    <button class="hover:bg-slate-300 w-24 h-7 text-sm text-center border-2 border-slate-500 absolute right-2" @click="loadDemo">load demo</button>
     <span class="h-7 ml-2">thread name:</span>
     <input class="h-7" type="text" placeholder="regex" v-model="filterRegex" @change="onFilterChange">
     <input v-bind="getInputProps()">
@@ -180,6 +181,19 @@ async function openFile(acceptedFiles: File[], rejectReasons: FileRejectReason[]
   const buf = await acceptedFiles[0].arrayBuffer()
   const data = new Uint8Array(buf)
 
+  await loadData(data)
+}
+
+async function loadDemo() {
+  state.value = "loading"
+  const response = await fetch(`${process.env.BASE_URL}demo.jfr`)
+  const buf = await response.arrayBuffer()
+  const data = new Uint8Array(buf)
+
+  await loadData(data)
+}
+
+async function loadData(data: Uint8Array) {
   filterRegex.value = undefined;
   try {
     renderer.value?.initialize(data)
