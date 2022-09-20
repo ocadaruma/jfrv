@@ -202,14 +202,18 @@ impl Renderer {
                     .raw
                     .create_element_ns(Some("http://www.w3.org/2000/svg"), "text")?;
                 let text_node = document.raw.create_text_node(&thread.name);
-                text.set_attribute("x", (self.chart_config.default_margin * 2.0).to_string().as_str())?;
+                text.set_attribute(
+                    "x",
+                    (self.chart_config.default_margin * 2.0)
+                        .to_string()
+                        .as_str(),
+                )?;
                 // y is the baseline of the text.
                 // so we add fontSize to the current offset.
                 // also add margin to allocate the margin-top.
                 text.set_attribute(
                     "y",
-                    (self.row_height() * i as f32
-                        + self.chart_config.font_size)
+                    (self.row_height() * i as f32 + self.chart_config.font_size)
                         .to_string()
                         .as_str(),
                 )?;

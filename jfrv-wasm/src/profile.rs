@@ -2,29 +2,33 @@
 //! Should not contain any wasm dependencies.
 
 use serde::{Deserialize, Serialize};
+#[cfg(target_arch = "wasm32")]
 use tsify::Tsify;
 
 pub const THREAD_STATE_RUNNING: &str = "STATE_RUNNABLE";
 pub const THREAD_STATE_SLEEPING: &str = "STATE_SLEEPING";
 
-#[derive(Clone, Deserialize, Serialize, Tsify)]
-#[tsify(into_wasm_abi, from_wasm_abi)]
+#[derive(Clone, Deserialize, Serialize)]
+#[cfg_attr(target_arch = "wasm32", derive(Tsify))]
+#[cfg_attr(target_arch = "wasm32", tsify(into_wasm_abi, from_wasm_abi))]
 #[serde(rename_all = "camelCase")]
 pub struct StackFrame {
     pub type_name: String,
     pub method_name: String,
 }
 
-#[derive(Clone, Default, Deserialize, Serialize, Tsify)]
-#[tsify(into_wasm_abi, from_wasm_abi)]
+#[derive(Clone, Default, Deserialize, Serialize)]
+#[cfg_attr(target_arch = "wasm32", derive(Tsify))]
+#[cfg_attr(target_arch = "wasm32", tsify(into_wasm_abi, from_wasm_abi))]
 #[serde(rename_all = "camelCase")]
 pub struct Thread {
     pub os_thread_id: i64,
     pub name: String,
 }
 
-#[derive(Clone, Default, Deserialize, Serialize, Tsify)]
-#[tsify(into_wasm_abi, from_wasm_abi)]
+#[derive(Clone, Default, Deserialize, Serialize)]
+#[cfg_attr(target_arch = "wasm32", derive(Tsify))]
+#[cfg_attr(target_arch = "wasm32", tsify(into_wasm_abi, from_wasm_abi))]
 #[serde(rename_all = "camelCase")]
 pub struct StackTrace {
     pub frames: Vec<StackFrame>,

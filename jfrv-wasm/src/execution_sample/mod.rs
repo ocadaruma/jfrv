@@ -18,11 +18,13 @@ use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 use std::collections::hash_map::Entry;
 use std::io::Cursor;
+#[cfg(target_arch = "wasm32")]
 use tsify::Tsify;
 
 /// Conditions to filter data
-#[derive(Default, Deserialize, Serialize, Tsify)]
-#[tsify(into_wasm_abi, from_wasm_abi)]
+#[derive(Default, Deserialize, Serialize)]
+#[cfg_attr(target_arch = "wasm32", derive(Tsify))]
+#[cfg_attr(target_arch = "wasm32", tsify(into_wasm_abi, from_wasm_abi))]
 #[serde(rename_all = "camelCase")]
 pub struct Filter {
     pub thread_name_regex: Option<String>,
@@ -234,6 +236,43 @@ impl Profile {
 
 #[cfg(test)]
 mod tests {
+    use crate::execution_sample::Profile;
+    use std::collections::HashSet;
+    use std::fs::File;
+    use std::io::Read;
+    use std::path::PathBuf;
+
     #[test]
-    fn test_load() {}
+    fn test_load() {
+        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-data/profiler-wall.jfr");
+        let mut bytes = vec![];
+        File::open(path).unwrap().read_to_end(&mut bytes).unwrap();
+
+        let mut profile = Profile::default();
+        assert!(profile.load(bytes).is_ok());
+        // these values can be checked by JMC
+        assert_eq!(profile.threads.len(), 30);
+        assert_eq!(profile.stack_trace_pool.len(), 25);
+    }
+
+    #[test]
+    fn test_load_multichunk() {
+        let path =
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-data/profiler-multichunk.jfr");
+        let mut bytes = vec![];
+        File::open(path).unwrap().read_to_end(&mut bytes).unwrap();
+
+        let mut profile = Profile::default();
+        assert!(profile.load(bytes).is_ok());
+        // Check that even when there are multiple chunks, threads are identified correctly
+        assert_eq!(profile.threads.len(), 30);
+        assert_eq!(profile.stack_trace_pool.len(), 87);
+
+        let chunks: HashSet<usize> = profile
+            .stack_trace_pool
+            .keys()
+            .map(|k| k.chunk_seq)
+            .collect();
+        assert_eq!(chunks.len(), 3);
+    }
 }

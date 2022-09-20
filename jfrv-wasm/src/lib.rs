@@ -4,15 +4,15 @@ pub mod profile;
 #[cfg(target_arch = "wasm32")]
 mod web;
 
-// Entry point for wasm
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 
 use log::info;
 use serde::{Deserialize, Serialize};
-
+#[cfg(target_arch = "wasm32")]
 use tsify::Tsify;
 
+#[cfg(target_arch = "wasm32")]
 type Result<T> = std::result::Result<T, JsValue>;
 
 #[cfg(target_arch = "wasm32")]
@@ -25,16 +25,18 @@ pub fn start() -> Result<()> {
     Ok(())
 }
 
-#[derive(Default, Deserialize, Serialize, Tsify)]
-#[tsify(into_wasm_abi, from_wasm_abi)]
+#[derive(Default, Deserialize, Serialize)]
+#[cfg_attr(target_arch = "wasm32", derive(Tsify))]
+#[cfg_attr(target_arch = "wasm32", tsify(into_wasm_abi, from_wasm_abi))]
 #[serde(rename_all = "camelCase")]
 pub struct Dimension {
     pub width: f32,
     pub height: f32,
 }
 
-#[derive(Deserialize, Serialize, Default, Tsify)]
-#[tsify(into_wasm_abi, from_wasm_abi)]
+#[derive(Deserialize, Serialize, Default)]
+#[cfg_attr(target_arch = "wasm32", derive(Tsify))]
+#[cfg_attr(target_arch = "wasm32", tsify(into_wasm_abi, from_wasm_abi))]
 #[serde(rename_all = "camelCase")]
 pub struct TimeInterval {
     pub start_millis: i64,
