@@ -60,7 +60,7 @@
         </div>
       </pane>
       <pane size="40" class="overflow-auto">
-        <div>
+        <div class="p-2">
           <div class="flex flex-col space-x-2 text-sm" v-for="(frame, idx) in highlightedFrames" :key="idx">
             {{ frame.typeName }}@{{ frame.methodName }}
           </div>
