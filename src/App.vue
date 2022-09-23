@@ -14,7 +14,17 @@
       </nav>
     </div>
     <div class="fixed top-12 left-0 right-0 bottom-0">
-      <router-view />
+      <router-view v-slot="{ Component }">
+        <keep-alive>
+          <component :is="Component" />
+        </keep-alive>
+      </router-view>
     </div>
   </div>
 </template>
+
+<style scoped lang="css">
+.router-link-active {
+  background-color: rgb(226 232 240);
+}
+</style>

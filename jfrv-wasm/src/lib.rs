@@ -8,7 +8,7 @@ mod web;
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 
-use log::info;
+
 use serde::{Deserialize, Serialize};
 #[cfg(target_arch = "wasm32")]
 use tsify::Tsify;
