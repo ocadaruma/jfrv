@@ -8,7 +8,7 @@ use tsify::Tsify;
 pub const THREAD_STATE_RUNNING: &str = "STATE_RUNNABLE";
 pub const THREAD_STATE_SLEEPING: &str = "STATE_SLEEPING";
 
-#[derive(Clone, Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize, Eq, PartialEq, Hash)]
 #[cfg_attr(target_arch = "wasm32", derive(Tsify))]
 #[cfg_attr(target_arch = "wasm32", tsify(into_wasm_abi, from_wasm_abi))]
 #[serde(rename_all = "camelCase")]
@@ -17,7 +17,7 @@ pub struct StackFrame {
     pub method_name: String,
 }
 
-#[derive(Clone, Default, Deserialize, Serialize)]
+#[derive(Clone, Default, Deserialize, Serialize, Eq, PartialEq, Hash)]
 #[cfg_attr(target_arch = "wasm32", derive(Tsify))]
 #[cfg_attr(target_arch = "wasm32", tsify(into_wasm_abi, from_wasm_abi))]
 #[serde(rename_all = "camelCase")]
@@ -26,7 +26,7 @@ pub struct Thread {
     pub name: String,
 }
 
-#[derive(Clone, Default, Deserialize, Serialize)]
+#[derive(Clone, Default, Deserialize, Serialize, Eq, PartialEq, Hash)]
 #[cfg_attr(target_arch = "wasm32", derive(Tsify))]
 #[cfg_attr(target_arch = "wasm32", tsify(into_wasm_abi, from_wasm_abi))]
 #[serde(rename_all = "camelCase")]
@@ -55,6 +55,13 @@ pub struct ExecutionSample {
     pub timestamp: i64,
     pub state: ThreadState,
     pub stack_trace_key: ConstantPoolKey,
+}
+
+pub struct OffCpu {
+    pub timestamp: i64,
+    pub duration: i64,
+    pub state: ThreadState,
+    pub stack_trace_key: i32,
 }
 
 #[derive(Copy, Clone, Hash, Eq, PartialEq)]

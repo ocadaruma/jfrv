@@ -5,6 +5,9 @@
         <router-link to="/execution-sample" class="hover:bg-slate-300 flex-none pl-2 pr-2 h-7 text-sm text-center border-2 rounded border-slate-400">
           <span class="align-middle">execution sample</span>
         </router-link>
+        <router-link to="/jbm" class="hover:bg-slate-300 flex-none pl-2 pr-2 h-7 text-sm text-center border-2 rounded border-slate-400">
+          <span class="align-middle">offcpu (jvm-blocking-monitor)</span>
+        </router-link>
         <a href="https://github.com/ocadaruma/jfrv"
            target="_blank"
            class="absolute h-7 border-2 border-slate-500 pl-2 pr-2 right-2">&#x1f4d6; docs</a>

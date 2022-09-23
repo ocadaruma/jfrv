@@ -1,0 +1,86 @@
+=== 2022-09-23 05:47:15.693 PID: 42597, TID: 42612 (VM Periodic Tas), DURATION: 50094123 us
+Native Stack:
+  0: [0xffffac3dcbb90c20] finish_task_switch.isra.0+0x0
+  1: [0xffffac3dccb71a44] schedule+0x54
+  2: [0xffffac3dcbc33ac0] futex_wait_queue_me+0xbc
+  3: [0xffffac3dcbc35ba4] futex_wait+0xd4
+  4: [0xffffac3dcbc39120] do_futex+0x11c
+  5: [0xffffac3dcbc39250] __arm64_sys_futex+0x80
+  6: [0xffffac3dcbacd5e8] invoke_syscall+0x78
+  7: [0xffffac3dcbacd7f0] el0_svc_common.constprop.0+0x180
+  8: [0xffffac3dcbacd828] do_el0_svc+0x34
+  9: [0xffffac3dccb69468] el0_svc+0x48
+  10: [0xffffac3dccb6b874] el0t_64_sync_handler+0xa4
+  11: [0xffffac3dcbab1e38] el0t_64_sync+0x1a4
+  12: [0xffff8dad9dfc] [unknown] [libc.so.6]
+  13: [0xffff8dadcc10] pthread_cond_timedwait+0x23c [libc.so.6]
+  14: [0xffff8d57e498] os::PlatformEvent::park(long)+0xd0 [libjvm.so]
+  15: [0xffff8d520eac] Monitor::IWait(Thread*, long)+0x7c [libjvm.so]
+  16: [0xffff8d521ef4] Monitor::wait(bool, long, bool)+0x204 [libjvm.so]
+  17: [0xffff8d7a9818] WatcherThread::sleep() const+0x98 [libjvm.so]
+  18: [0xffff8d7a9948] WatcherThread::run()+0x70 [libjvm.so]
+  19: [0xffff8d7aff84] Thread::call_run()+0x94 [libjvm.so]
+  20: [0xffff8d573fa4] thread_native_entry(Thread*)+0xec [libjvm.so]
+  21: [0xffff8dadd5c8] [unknown] [libc.so.6]
+  22: [0xffff8db45d1c] [unknown] [libc.so.6]
+--------------------------------------------------------------------------------
+JVM Stack (took: 2022-09-23 05:47:15.715):
+  0: [0xffff1c490ca0] /usr/lib/aarch64-linux-gnu/libc.so.6
+  1: [0xffff1c49b3a0] pthread_cond_timedwait
+  2: [0xffff1c42c630] os::PlatformEvent::park(long)
+  3: [0xffff1c3eb340] Monitor::IWait(Thread*, long)
+  4: [0xffff1c26efc0] Monitor::wait(bool, long, bool)
+  5: [0xffff1c340440] WatcherThread::sleep() const
+  6: [0xffff1c295750] WatcherThread::run()
+  7: [0xffff1c3ef160] Thread::call_run()
+  8: [0xffff1c1bb860] thread_native_entry(Thread*)
+  9: [0xffff1c490ca0] /usr/lib/aarch64-linux-gnu/libc.so.6
+  10: [0xffff1c490ca0] /usr/lib/aarch64-linux-gnu/libc.so.6
+=== 2022-09-23 05:47:15.723 PID: 42597, TID: 42615 (writer-1), DURATION: 10000066 us
+Native Stack:
+  0: [0xffffac3dcbb90c20] finish_task_switch.isra.0+0x0
+  1: [0xffffac3dccb71a44] schedule+0x54
+  2: [0xffffac3dcbc33ac0] futex_wait_queue_me+0xbc
+  3: [0xffffac3dcbc35ba4] futex_wait+0xd4
+  4: [0xffffac3dcbc39120] do_futex+0x11c
+  5: [0xffffac3dcbc39250] __arm64_sys_futex+0x80
+  6: [0xffffac3dcbacd5e8] invoke_syscall+0x78
+  7: [0xffffac3dcbacd7f0] el0_svc_common.constprop.0+0x180
+  8: [0xffffac3dcbacd828] do_el0_svc+0x34
+  9: [0xffffac3dccb69468] el0_svc+0x48
+  10: [0xffffac3dccb6b874] el0t_64_sync_handler+0xa4
+  11: [0xffffac3dcbab1e38] el0t_64_sync+0x1a4
+  12: [0xffff8dad9dfc] [unknown] [libc.so.6]
+  13: [0xffff8dadcc10] pthread_cond_timedwait+0x23c [libc.so.6]
+  14: [0xffff8d57e840] Parker::park(bool, long)+0x1d0 [libjvm.so]
+  15: [0xffff8d7e3178] Unsafe_Park+0x88 [libjvm.so]
+  16: [0xffff782f173c] [unknown]
+  17: [0xffff70e03d54] [unknown]
+  18: [0xffff7081819c] [unknown]
+  19: [0xffff708181f4] [unknown]
+  20: [0xffff7081819c] [unknown]
+  21: [0xffff708181f4] [unknown]
+  22: [0xffff70811144] [unknown]
+  23: [0xffff8d231650] JavaCalls::call_helper(JavaValue*, methodHandle const&, JavaCallArguments*, Thread*)+0x360 [libjvm.so]
+  24: [0xffff8d22facc] JavaCalls::call_virtual(JavaValue*, Handle, Klass*, Symbol*, Symbol*, Thread*)+0x174 [libjvm.so]
+  25: [0xffff8d2d9b48] thread_entry(JavaThread*, Thread*)+0x68 [libjvm.so]
+  26: [0xffff8d7b2588] JavaThread::thread_main_inner()+0x1b8 [libjvm.so]
+  27: [0xffff8d7aff84] Thread::call_run()+0x94 [libjvm.so]
+  28: [0xffff8d573fa4] thread_native_entry(Thread*)+0xec [libjvm.so]
+  29: [0xffff8dadd5c8] [unknown] [libc.so.6]
+  30: [0xffff8db45d1c] [unknown] [libc.so.6]
+--------------------------------------------------------------------------------
+JVM Stack (took: 2022-09-23 05:47:15.723):
+  0: [0xffff1c490ca0] /usr/lib/aarch64-linux-gnu/libc.so.6
+  1: [0xffff1c49b3a0] pthread_cond_timedwait
+  2: [0xffff1c33c080] Parker::park(bool, long)
+  3: [0xffff1c1d9b70] Unsafe_Park
+  4: [0xffff1c5108c8] jdk.internal.misc.Unsafe.park
+  5: [0xffff1c50a7a8] java.util.concurrent.locks.LockSupport.parkNanos
+  6: [0xffff1c4eaff0] java.util.concurrent.locks.AbstractQueuedSynchronizer$ConditionObject.awaitNanos
+  7: [0xffff1c4eb660] java.util.concurrent.LinkedBlockingQueue.poll
+  8: [0xffff1c4e3828] Example.lambda$main$2
+  9: [0xffff1c4e33d0] Example$$Lambda$4.1500056228.run
+  10: [0xffff1c4ebda0] java.util.concurrent.ThreadPoolExecutor.runWorker
+  11: [0xffff1c4ea5d0] java.util.concurrent.ThreadPoolExecutor$Worker.run
+  12: [0xffff1c516098] java.lang.Thread.run

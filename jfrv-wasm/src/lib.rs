@@ -1,4 +1,5 @@
 pub mod execution_sample;
+pub mod jbm;
 pub mod profile;
 
 #[cfg(target_arch = "wasm32")]
