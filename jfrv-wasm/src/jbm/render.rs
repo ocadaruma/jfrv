@@ -2,12 +2,11 @@
 
 use crate::jbm::{JbmFilter, Profile};
 use crate::web::{Canvas, Document, Svg};
-use crate::Dimension;
 use crate::Result;
-use chrono::{DateTime, Duration, Local, NaiveDateTime, TimeZone};
+use chrono::{Duration, Local, NaiveDateTime, TimeZone};
 use log::{debug, info};
 
-use crate::profile::{OffCpu, StackTrace, ThreadState};
+use crate::profile::{StackTrace, ThreadState};
 use serde::{Deserialize, Serialize};
 use tsify::Tsify;
 use wasm_bindgen::prelude::*;

@@ -53,6 +53,7 @@ impl From<&str> for ThreadState {
 
 pub struct ExecutionSample {
     pub timestamp: i64,
+    pub timestamp_epoch: i64,
     pub state: ThreadState,
     pub stack_trace_key: ConstantPoolKey,
 }

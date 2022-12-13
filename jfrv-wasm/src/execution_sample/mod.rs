@@ -57,6 +57,8 @@ impl Profile {
 
         for (chunk_seq, reader) in reader.chunks().enumerate() {
             let (reader, chunk) = reader?;
+            let start_millis = chunk.header.start_time_nanos / 1000 / 1000;
+            let start_ticks = chunk.header.start_ticks;
 
             for event in reader.events(&chunk) {
                 let event = event?;
@@ -95,7 +97,7 @@ impl Profile {
                     }
                 };
 
-                let timestamp = event
+                let tick = event
                     .value()
                     .get_field("startTime")
                     .and_then(|s| i64::try_from(s.value).ok())
@@ -105,13 +107,14 @@ impl Profile {
                     .entry(os_thread_id)
                     .or_insert_with(Vec::new);
                 samples.push(ExecutionSample {
-                    timestamp,
+                    timestamp: tick,
+                    timestamp_epoch: (tick - start_ticks) / 1000 / 1000 + start_millis,
                     state,
                     stack_trace_key,
                 });
 
-                interval.start_millis = interval.start_millis.min(timestamp);
-                interval.end_millis = interval.end_millis.max(timestamp);
+                interval.start_millis = interval.start_millis.min(tick);
+                interval.end_millis = interval.end_millis.max(tick);
                 column_count = column_count.max(samples.len());
             }
         }

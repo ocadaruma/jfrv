@@ -60,10 +60,28 @@
         </div>
       </pane>
       <pane size="40" class="overflow-auto">
-        <div class="p-2">
-          <div class="flex flex-col space-x-2 text-sm" v-for="(frame, idx) in highlightedFrames" :key="idx">
-            {{ frame.typeName }}@{{ frame.methodName }}
-          </div>
+        <div class="w-full h-full">
+          <splitpanes vertical>
+            <pane size="75" class="overflow-auto">
+              <div class="p-2">
+                <div class="flex flex-col space-x-2 text-sm" v-for="(frame, idx) in highlightedSample?.stackTrace.frames" :key="idx">
+                  {{ frame.typeName }}@{{ frame.methodName }}
+                </div>
+              </div>
+            </pane>
+            <pane>
+              <div class="h-full p-2 overflow-auto">
+                <table class="table-auto whitespace-nowrap">
+                  <tbody>
+                  <tr>
+                    <td class="text-right">timestamp :</td>
+                    <td>{{ highlightedSample?.timestamp }}</td>
+                  </tr>
+                  </tbody>
+                </table>
+              </div>
+            </pane>
+          </splitpanes>
         </div>
       </pane>
     </splitpanes>
@@ -76,7 +94,7 @@
 import { Splitpanes, Pane } from "splitpanes";
 import {
   Renderer,
-  ChartConfig, StackFrame,
+  ChartConfig, StackFrame, ExecutionSampleInfo,
 } from "../../jfrv-wasm/pkg";
 import {ComponentPublicInstance, onMounted, ref} from "vue";
 import {FileRejectReason, useDropzone} from "vue3-dropzone";
@@ -113,7 +131,7 @@ const CHART_CONFIG: ChartConfig = {
 
 const renderer = ref<Renderer>()
 
-const highlightedFrames = ref<StackFrame[]>()
+const highlightedSample = ref<ExecutionSampleInfo>()
 const headerPane = ref<ComponentPublicInstance>()
 const chartPane = ref<ComponentPublicInstance>()
 const header = ref<SVGGraphicsElement>()
@@ -156,8 +174,7 @@ function onFilterChange() {
 }
 
 function onChartClick() {
-  const stackTrace = renderer.value?.on_chart_click()
-  highlightedFrames.value = stackTrace?.frames
+  highlightedSample.value = renderer.value?.on_chart_click()
 }
 
 function onHeaderMouseMove(e: MouseEvent) {

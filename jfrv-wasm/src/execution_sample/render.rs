@@ -5,6 +5,7 @@ use crate::profile::{StackTrace, ThreadState};
 use crate::web::{Canvas, Document, Svg};
 use crate::Dimension;
 use crate::Result;
+use chrono::{Local, NaiveDateTime, TimeZone};
 use log::debug;
 
 use serde::{Deserialize, Serialize};
@@ -58,6 +59,14 @@ pub struct ThreadStateColorConfig {
     pub state_runnable_rgb_hex: u32,
     pub state_sleeping_rgb_hex: u32,
     pub state_unknown_rgb_hex: u32,
+}
+
+#[derive(Default, Deserialize, Serialize, Tsify)]
+#[tsify(into_wasm_abi, from_wasm_abi)]
+#[serde(rename_all = "camelCase")]
+pub struct ExecutionSampleInfo {
+    pub timestamp: String,
+    pub stack_trace: StackTrace,
 }
 
 /// State of the current rendered chart
@@ -267,7 +276,7 @@ impl Renderer {
         self.chart_state.highlighted_sample_idx = None;
     }
 
-    pub fn on_chart_click(&self) -> Option<StackTrace> {
+    pub fn on_chart_click(&self) -> Option<ExecutionSampleInfo> {
         match self.chart_state {
             ChartState {
                 highlighted_thread_id: Some(thread_id),
@@ -277,8 +286,20 @@ impl Renderer {
                 .per_thread_samples
                 .get(&thread_id)
                 .and_then(|s| s.get(sample_idx))
-                .and_then(|s| self.profile.stack_trace_pool.get(&s.stack_trace_key))
-                .cloned(),
+                .and_then(|s| {
+                    let stack_trace = self.profile.stack_trace_pool.get(&s.stack_trace_key);
+                    let timestamp = NaiveDateTime::from_timestamp(
+                        s.timestamp_epoch / 1000,
+                        (s.timestamp_epoch % 1000) as u32 * 1000000,
+                    );
+                    stack_trace.map(|t| ExecutionSampleInfo {
+                        timestamp: Local
+                            .from_utc_datetime(&timestamp)
+                            .format("%Y-%m-%d %H:%M:%S.%3f")
+                            .to_string(),
+                        stack_trace: t.clone(),
+                    })
+                }),
             _ => None,
         }
     }
