@@ -14,7 +14,7 @@ use jfrs::reader::value_descriptor::ValueDescriptor;
 use jfrs::reader::{Chunk, JfrReader};
 use log::info;
 use regex::Regex;
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 use serde::{Deserialize, Serialize};
 use std::collections::hash_map::Entry;
 use std::io::Cursor;
@@ -28,12 +28,15 @@ use tsify::Tsify;
 #[serde(rename_all = "camelCase")]
 pub struct Filter {
     pub thread_name_regex: Option<String>,
+    pub stack_trace_match_regex: Option<String>,
+    pub stack_trace_reject_regex: Option<String>,
 }
 
 #[derive(Default)]
 pub struct Profile {
     threads: Vec<Thread>,
     filtered_threads: Vec<Thread>,
+    filtered_stack_trace_keys: FxHashSet<ConstantPoolKey>,
     pub stack_trace_pool: FxHashMap<ConstantPoolKey, StackTrace>,
     pub per_thread_samples: FxHashMap<i64, Vec<ExecutionSample>>,
     pub column_count: usize,
@@ -123,6 +126,7 @@ impl Profile {
         self.threads.sort_by(|a, b| a.name.cmp(&b.name));
         self.filtered_threads = self.threads.to_vec();
         self.stack_trace_pool = stack_trace_pool;
+        self.filtered_stack_trace_keys = self.stack_trace_pool.keys().cloned().collect();
         self.per_thread_samples = per_thread_samples;
         for (_, v) in self.per_thread_samples.iter_mut() {
             v.sort_by_key(|s| s.timestamp)
@@ -139,6 +143,11 @@ impl Profile {
         &self.filtered_threads
     }
 
+    pub fn is_valid_sample(&self, sample: &ExecutionSample) -> bool {
+        self.filtered_stack_trace_keys
+            .contains(&sample.stack_trace_key)
+    }
+
     pub fn apply_filter(&mut self, filter: Filter) -> Result<()> {
         if let Some(regex) = &filter.thread_name_regex {
             let regex = Regex::new(regex.as_str())?;
@@ -153,6 +162,50 @@ impl Profile {
         } else {
             self.filtered_threads = self.threads.to_vec();
         }
+
+        let stack_trace_match_regex = if let Some(regex) = &filter.stack_trace_match_regex {
+            Some(Regex::new(regex.as_str())?)
+        } else {
+            None
+        };
+        let stack_trace_reject_regex = if let Some(regex) = &filter.stack_trace_reject_regex {
+            Some(Regex::new(regex.as_str())?)
+        } else {
+            None
+        };
+
+        if stack_trace_match_regex.is_none() && stack_trace_reject_regex.is_none() {
+            // fast path
+            self.filtered_stack_trace_keys = self.stack_trace_pool.keys().cloned().collect();
+        } else {
+            self.filtered_stack_trace_keys = self
+                .stack_trace_pool
+                .iter()
+                .map(|(k, v)| {
+                    (
+                        k,
+                        v.frames
+                            .iter()
+                            .map(|f| format!("{}.{}", f.type_name, f.method_name))
+                            .collect::<Vec<_>>()
+                            .join("\n"),
+                    )
+                })
+                .filter(|(_k, v)| {
+                    stack_trace_match_regex
+                        .as_ref()
+                        .map(|r| r.is_match(v))
+                        .unwrap_or(true)
+                        && stack_trace_reject_regex
+                            .as_ref()
+                            .map(|r| !r.is_match(v))
+                            .unwrap_or(true)
+                })
+                .map(|(k, _v)| k)
+                .cloned()
+                .collect();
+        }
+
         Ok(())
     }
 

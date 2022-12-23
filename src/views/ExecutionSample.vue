@@ -8,7 +8,11 @@
     <button class="hover:bg-slate-300 w-24 h-7 text-sm text-center border-2 rounded border-slate-400" @click="open">open file</button>
     <button class="hover:bg-slate-300 w-24 h-7 text-sm text-center border-2 border-slate-500 absolute right-2" @click="loadDemo">load demo</button>
     <span class="h-7 ml-2">thread name:</span>
-    <input class="h-7" type="text" placeholder="regex" v-model="filterRegex" @change="onFilterChange">
+    <input class="h-7" type="text" placeholder="regex" v-model="threadNameRegex" @change="onFilterChange">
+    <span class="h-7 ml-2">stack trace:</span>
+    <input class="h-7" type="text" placeholder="match regex" v-model="stackTraceMatchRegex" @change="onFilterChange">
+    <span class="h-7 ml-2">&& !</span>
+    <input class="h-7" type="text" placeholder="reject regex" v-model="stackTraceRejectRegex" @change="onFilterChange">
     <input v-bind="getInputProps()">
     <div class="flex flex-col space-x-2">
     </div>
@@ -65,7 +69,7 @@
             <pane size="75" class="overflow-auto">
               <div class="p-2">
                 <div class="flex flex-col space-x-2 text-sm" v-for="(frame, idx) in highlightedSample?.stackTrace.frames" :key="idx">
-                  {{ frame.typeName }}@{{ frame.methodName }}
+                  {{ frame.typeName }}.{{ frame.methodName }}
                 </div>
               </div>
             </pane>
@@ -121,7 +125,8 @@ const CHART_CONFIG: ChartConfig = {
   threadStateColorConfig: {
     stateRunnableRgbHex: 0x6cba1e,
     stateSleepingRgbHex: 0x8554c2,
-    stateUnknownRgbHex: 0x6f6d72
+    stateUnknownRgbHex: 0x6f6d72,
+    stateHiddenRgbHex: 0xc4c4c4,
   },
   overlayConfig: {
     rowHighlightArgbHex: 0x40404040,
@@ -136,7 +141,9 @@ const headerPane = ref<ComponentPublicInstance>()
 const chartPane = ref<ComponentPublicInstance>()
 const header = ref<SVGGraphicsElement>()
 const chart = ref<HTMLCanvasElement>()
-const filterRegex = ref<string>()
+const threadNameRegex = ref<string>()
+const stackTraceMatchRegex = ref<string>()
+const stackTraceRejectRegex = ref<string>()
 const state = ref<"loading" | "loaded">()
 
 const {
@@ -157,20 +164,23 @@ onMounted(async () => {
   renderer.value = new wasm.Renderer(CHART_CONFIG)
 })
 
+function nullIfEmpty(value: string | undefined): string | null {
+  if (value !== undefined && value?.length > 0) {
+    return value;
+  }
+  return null;
+}
+
 function onFilterChange() {
   if (!state.value) {
     return
   }
 
-  if (filterRegex.value !== undefined && filterRegex.value?.length > 0) {
-    renderer.value?.apply_filter({
-      threadNameRegex: filterRegex.value
-    })
-  } else {
-    renderer.value?.apply_filter({
-      threadNameRegex: null
-    })
-  }
+  renderer.value?.apply_filter({
+    threadNameRegex: nullIfEmpty(threadNameRegex.value),
+    stackTraceMatchRegex: nullIfEmpty(stackTraceMatchRegex.value),
+    stackTraceRejectRegex: nullIfEmpty(stackTraceRejectRegex.value),
+  })
 }
 
 function onChartClick() {
@@ -211,7 +221,9 @@ async function loadDemo() {
 }
 
 async function loadData(data: Uint8Array) {
-  filterRegex.value = undefined;
+  threadNameRegex.value = undefined;
+  stackTraceMatchRegex.value = undefined;
+  stackTraceRejectRegex.value = undefined;
   try {
     renderer.value?.initialize(data)
     renderer.value?.render()

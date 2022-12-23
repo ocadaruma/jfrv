@@ -59,6 +59,7 @@ pub struct ThreadStateColorConfig {
     pub state_runnable_rgb_hex: u32,
     pub state_sleeping_rgb_hex: u32,
     pub state_unknown_rgb_hex: u32,
+    pub state_hidden_rgb_hex: u32,
 }
 
 #[derive(Default, Deserialize, Serialize, Tsify)]
@@ -156,22 +157,28 @@ impl Renderer {
                     let x = self.sample_view_width()
                         * (sample.timestamp - self.profile.interval.start_millis) as f32
                         / self.profile.interval.duration_millis() as f32;
-                    let color = match sample.state {
-                        ThreadState::Unknown => {
-                            self.chart_config
-                                .thread_state_color_config
-                                .state_unknown_rgb_hex
+                    let color = if self.profile.is_valid_sample(sample) {
+                        match sample.state {
+                            ThreadState::Unknown => {
+                                self.chart_config
+                                    .thread_state_color_config
+                                    .state_unknown_rgb_hex
+                            }
+                            ThreadState::Runnable => {
+                                self.chart_config
+                                    .thread_state_color_config
+                                    .state_runnable_rgb_hex
+                            }
+                            ThreadState::Sleeping => {
+                                self.chart_config
+                                    .thread_state_color_config
+                                    .state_sleeping_rgb_hex
+                            }
                         }
-                        ThreadState::Runnable => {
-                            self.chart_config
-                                .thread_state_color_config
-                                .state_runnable_rgb_hex
-                        }
-                        ThreadState::Sleeping => {
-                            self.chart_config
-                                .thread_state_color_config
-                                .state_sleeping_rgb_hex
-                        }
+                    } else {
+                        self.chart_config
+                            .thread_state_color_config
+                            .state_hidden_rgb_hex
                     };
 
                     self.chart
@@ -195,7 +202,8 @@ impl Renderer {
             let text = document
                 .raw
                 .create_element_ns(Some("http://www.w3.org/2000/svg"), "text")?;
-            let text_node = document.raw.create_text_node(&thread.name);
+            let thread_name = format!("{} [tid=0x{:x}]", thread.name, thread.os_thread_id);
+            let text_node = document.raw.create_text_node(&thread_name);
             text.set_attribute(
                 "x",
                 (self.chart_config.default_margin * 2.0)
