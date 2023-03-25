@@ -60,8 +60,9 @@ impl Profile {
 
         for (chunk_seq, reader) in reader.chunks().enumerate() {
             let (reader, chunk) = reader?;
-            let start_millis = chunk.header.start_time_nanos / 1000 / 1000;
+            let start_nanos = chunk.header.start_time_nanos;
             let start_ticks = chunk.header.start_ticks;
+            let ticks_per_nanos = (chunk.header.ticks_per_second as f64) / 1_000_000_000.0;
 
             for event in reader.events(&chunk) {
                 let event = event?;
@@ -105,19 +106,21 @@ impl Profile {
                     .get_field("startTime")
                     .and_then(|s| i64::try_from(s.value).ok())
                     .ok_or_else(|| anyhow!("Failed to get startTime"))?;
+                let timestamp_nanos =
+                    start_nanos + ((tick - start_ticks) as f64 / ticks_per_nanos) as i64;
+                let timestamp_millis = timestamp_nanos / 1000 / 1000;
 
                 let samples = per_thread_samples
                     .entry(os_thread_id)
                     .or_insert_with(Vec::new);
                 samples.push(ExecutionSample {
-                    timestamp: tick,
-                    timestamp_epoch: (tick - start_ticks) / 1000 / 1000 + start_millis,
+                    timestamp_nanos,
                     state,
                     stack_trace_key,
                 });
 
-                interval.start_millis = interval.start_millis.min(tick);
-                interval.end_millis = interval.end_millis.max(tick);
+                interval.start_millis = interval.start_millis.min(timestamp_millis);
+                interval.end_millis = interval.end_millis.max(timestamp_millis);
                 column_count = column_count.max(samples.len());
             }
         }
@@ -129,7 +132,7 @@ impl Profile {
         self.filtered_stack_trace_keys = self.stack_trace_pool.keys().cloned().collect();
         self.per_thread_samples = per_thread_samples;
         for (_, v) in self.per_thread_samples.iter_mut() {
-            v.sort_by_key(|s| s.timestamp)
+            v.sort_by_key(|s| s.timestamp_nanos)
         }
         self.column_count = column_count;
         self.interval = interval;

@@ -175,7 +175,7 @@ impl JbmRenderer {
                         x as f64,
                         y as f64,
                         self.chart_config.sample_view_config.sample_width_per_hour as f64
-                            * (sample.duration as f64 / 3600000.0),
+                            * (sample.duration_millis as f64 / 3600000.0),
                         self.chart_config.sample_view_config.sample_render_height as f64,
                     );
                 }
@@ -295,14 +295,14 @@ impl JbmRenderer {
                         );
                         Some(JbmSampleInfo {
                             stack_trace,
-                            duration_millis: sample.duration,
+                            duration_millis: sample.duration_millis,
                             thread_name: thread.name.clone(),
                             offcpu_start: Local
                                 .from_utc_datetime(&t)
                                 .format("%Y-%m-%d %H:%M:%S.%3f")
                                 .to_string(),
                             offcpu_end: (Local.from_utc_datetime(&t)
-                                + Duration::milliseconds(sample.duration))
+                                + Duration::milliseconds(sample.duration_millis))
                             .format("%Y-%m-%d %H:%M:%S.%3f")
                             .to_string(),
                         })
@@ -332,7 +332,7 @@ impl JbmRenderer {
                         / self.profile.interval.duration_millis() as f32;
                     let mut right_bound = sample_x
                         + self.chart_config.sample_view_config.sample_width_per_hour
-                            * (sample.duration as f32 / 3600000.0);
+                            * (sample.duration_millis as f32 / 3600000.0);
                     if let Some(next_sample) = samples.get(i + 1) {
                         right_bound = self.sample_view_width()
                             * (next_sample.timestamp - self.profile.interval.start_millis) as f32
@@ -341,7 +341,7 @@ impl JbmRenderer {
                     if sample_x <= x && x <= right_bound {
                         highlighted_sample = Some((
                             i,
-                            sample.duration,
+                            sample.duration_millis,
                             sample_x,
                             thread_idx as f32 * self.row_height(),
                         ));

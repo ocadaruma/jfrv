@@ -52,15 +52,14 @@ impl From<&str> for ThreadState {
 }
 
 pub struct ExecutionSample {
-    pub timestamp: i64,
-    pub timestamp_epoch: i64,
+    pub timestamp_nanos: i64,
     pub state: ThreadState,
     pub stack_trace_key: ConstantPoolKey,
 }
 
 pub struct OffCpu {
     pub timestamp: i64,
-    pub duration: i64,
+    pub duration_millis: i64,
     pub state: ThreadState,
     pub stack_trace_key: i32,
 }

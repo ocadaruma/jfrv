@@ -154,9 +154,7 @@ impl Renderer {
                             .height)
                         / 2.0;
                 for (_j, sample) in samples.iter().enumerate() {
-                    let x = self.sample_view_width()
-                        * (sample.timestamp - self.profile.interval.start_millis) as f32
-                        / self.profile.interval.duration_millis() as f32;
+                    let x = self.sample_view_width() * self.elapsed_ratio(sample.timestamp_nanos);
                     let color = if self.profile.is_valid_sample(sample) {
                         match sample.state {
                             ThreadState::Unknown => {
@@ -297,8 +295,8 @@ impl Renderer {
                 .and_then(|s| {
                     let stack_trace = self.profile.stack_trace_pool.get(&s.stack_trace_key);
                     let timestamp = NaiveDateTime::from_timestamp(
-                        s.timestamp_epoch / 1000,
-                        (s.timestamp_epoch % 1000) as u32 * 1000000,
+                        s.timestamp_nanos / 1_000_000_000,
+                        (s.timestamp_nanos % 1_000_000_000) as u32,
                     );
                     stack_trace.map(|t| ExecutionSampleInfo {
                         timestamp: Local
@@ -325,9 +323,8 @@ impl Renderer {
             if let (Some(samples), Some(x)) = (self.profile.per_thread_samples.get(&thread_id), x) {
                 // TODO: binary search
                 for (i, sample) in samples.iter().enumerate() {
-                    let sample_x = self.sample_view_width()
-                        * (sample.timestamp - self.profile.interval.start_millis) as f32
-                        / self.profile.interval.duration_millis() as f32;
+                    let sample_x =
+                        self.sample_view_width() * self.elapsed_ratio(sample.timestamp_nanos);
                     let mut right_bound = sample_x
                         + self
                             .chart_config
@@ -336,8 +333,7 @@ impl Renderer {
                             .width;
                     if let Some(next_sample) = samples.get(i + 1) {
                         right_bound = self.sample_view_width()
-                            * (next_sample.timestamp - self.profile.interval.start_millis) as f32
-                            / self.profile.interval.duration_millis() as f32;
+                            * self.elapsed_ratio(next_sample.timestamp_nanos);
                     }
                     if sample_x <= x && x <= right_bound {
                         highlighted_sample =
@@ -393,6 +389,11 @@ impl Renderer {
             .sample_render_size
             .width
             * self.profile.column_count as f32
+    }
+
+    fn elapsed_ratio(&self, timestamp_nanos: i64) -> f32 {
+        ((timestamp_nanos - (self.profile.interval.start_millis * 1000000)) as f64
+            / (self.profile.interval.duration_millis() * 1000000) as f64) as f32
     }
 
     fn row_height(&self) -> f32 {

@@ -164,7 +164,7 @@ impl Profile {
             .or_insert_with(Vec::new);
         samples.push(OffCpu {
             timestamp: sample.timestamp,
-            duration: sample.duration,
+            duration_millis: sample.duration,
             state: sample.state,
             stack_trace_key: id,
         });
