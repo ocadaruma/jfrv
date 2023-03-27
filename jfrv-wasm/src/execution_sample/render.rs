@@ -11,6 +11,7 @@ use log::debug;
 use serde::{Deserialize, Serialize};
 use tsify::Tsify;
 use wasm_bindgen::prelude::*;
+use web_sys::HtmlElement;
 
 #[derive(Default, Deserialize, Serialize, Tsify)]
 #[tsify(into_wasm_abi, from_wasm_abi)]
@@ -31,6 +32,7 @@ pub struct HeaderConfig {
     pub border_width: f32,
     pub border_color_rgb_hex: u32,
     pub element_id: String,
+    pub pane_id: String,
     pub overlay_element_id: String,
 }
 
@@ -39,6 +41,7 @@ pub struct HeaderConfig {
 #[serde(rename_all = "camelCase")]
 pub struct SampleViewConfig {
     pub element_id: String,
+    pub pane_id: String,
     pub overlay_element_id: String,
     pub sample_render_size: Dimension,
     pub background_rgb_hex: u32,
@@ -84,8 +87,10 @@ pub struct Renderer {
     chart_state: ChartState,
     document: Document,
     header: Svg,
+    header_pane: HtmlElement,
     header_overlay: Canvas,
     chart: Canvas,
+    chart_pane: HtmlElement,
     chart_overlay: Canvas,
     row_highlight: JsValue,
     sample_highlight: JsValue,
@@ -101,10 +106,13 @@ impl Renderer {
             profile: Profile::default(),
             chart_state: ChartState::default(),
             header: document.get_svg_by_id(chart_config.header_config.element_id.as_str())?,
+            header_pane: document.get_element_by_id(chart_config.header_config.pane_id.as_str())?,
             header_overlay: document
                 .get_canvas_by_id(chart_config.header_config.overlay_element_id.as_str())?,
             chart: document
                 .get_canvas_by_id(chart_config.sample_view_config.element_id.as_str())?,
+            chart_pane: document
+                .get_element_by_id(chart_config.sample_view_config.pane_id.as_str())?,
             chart_overlay: document
                 .get_canvas_by_id(chart_config.sample_view_config.overlay_element_id.as_str())?,
             row_highlight: JsValue::from_str(
@@ -354,7 +362,8 @@ impl Renderer {
             self.chart_overlay.ctx.set_fill_style(&self.row_highlight);
             self.header_overlay.ctx.set_fill_style(&self.row_highlight);
 
-            let y = (thread_idx as f32 * self.row_height()) as f64;
+            let y = (thread_idx as f32 * self.row_height()) as f64
+                - self.chart_pane.scroll_top() as f64;
             let h = self.row_height() as f64;
 
             self.chart_overlay
@@ -369,8 +378,8 @@ impl Renderer {
                     .ctx
                     .set_fill_style(&self.sample_highlight);
                 self.chart_overlay.ctx.fill_rect(
-                    x as f64,
-                    y as f64,
+                    x as f64 - self.chart_pane.scroll_left() as f64,
+                    y as f64 - self.chart_pane.scroll_top() as f64,
                     self.chart_config
                         .sample_view_config
                         .sample_render_size

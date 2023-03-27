@@ -16,20 +16,24 @@ impl Document {
     }
 
     pub fn get_canvas_by_id(&self, id: &str) -> Result<Canvas> {
-        self.get_element_by_id::<web_sys::HtmlCanvasElement>(id)
+        self._get_element_by_id::<web_sys::HtmlCanvasElement>(id)
             .and_then(Canvas::try_new)
     }
 
     pub fn get_raw_canvas_by_id(&self, id: &str) -> Result<web_sys::HtmlCanvasElement> {
-        self.get_element_by_id::<web_sys::HtmlCanvasElement>(id)
+        self._get_element_by_id::<web_sys::HtmlCanvasElement>(id)
     }
 
     pub fn get_svg_by_id(&self, id: &str) -> Result<Svg> {
-        self.get_element_by_id::<web_sys::SvgGraphicsElement>(id)
+        self._get_element_by_id::<web_sys::SvgGraphicsElement>(id)
             .map(|raw| Svg { raw })
     }
 
-    fn get_element_by_id<T: JsCast>(&self, id: &str) -> Result<T> {
+    pub fn get_element_by_id(&self, id: &str) -> Result<web_sys::HtmlElement> {
+        self._get_element_by_id::<web_sys::HtmlElement>(id)
+    }
+
+    fn _get_element_by_id<T: JsCast>(&self, id: &str) -> Result<T> {
         self.raw
             .get_element_by_id(id)
             .and_then(|e| e.dyn_into::<T>().ok())

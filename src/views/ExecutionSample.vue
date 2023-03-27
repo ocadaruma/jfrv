@@ -17,20 +17,26 @@
     <div class="flex flex-col space-x-2">
     </div>
   </div>
+  <canvas ref="headerOverlay"
+          id="header-overlay"
+          class="fixed pointer-events-none z-10"
+          width="0"
+          height="0"/>
+  <canvas ref="chartOverlay"
+          id="chart-overlay"
+          class="fixed pointer-events-none z-10"
+          width="0"
+          height="0"/>
   <div class="absolute top-12 right-0 left-0 bottom-0">
-    <splitpanes class="default-theme text-sm" horizontal v-bind="getRootProps()">
+    <splitpanes class="default-theme text-sm" horizontal v-bind="getRootProps()" @resize="syncSize()">
       <pane>
         <div class="w-full h-full">
-          <splitpanes vertical>
+          <splitpanes vertical @resize="syncSize()">
             <pane size="25"
                   class="overflow-x-hidden overflow-y-auto scrollbar-none relative"
                   @scroll="syncScroll('header')"
-                  ref="headerPane">
-              <canvas ref="header-overlay"
-                      id="header-overlay"
-                      class="absolute top-0 left-0 pointer-events-none"
-                      width="0"
-                      height="0"/>
+                  ref="headerPane"
+                  id="header-pane">
               <svg ref="header"
                    id="header"
                    class="absolute top-0 left-0"
@@ -41,12 +47,8 @@
             </pane>
             <pane class="overflow-auto relative"
                   @scroll="syncScroll('chart')"
-                  ref="chartPane">
-              <canvas ref="chart-overlay"
-                      id="chart-overlay"
-                      class="absolute top-0 left-0 pointer-events-none"
-                      width="0"
-                      height="0"/>
+                  ref="chartPane"
+                  id="chart-pane">
               <canvas ref="chart"
                       id="thread-chart-sample-view"
                       @mousemove="onChartMouseMove"
@@ -100,7 +102,7 @@ import {
   Renderer,
   ChartConfig, StackFrame, ExecutionSampleInfo,
 } from "../../jfrv-wasm/pkg";
-import {ComponentPublicInstance, onMounted, ref} from "vue";
+import {ComponentPublicInstance, onMounted, onUnmounted, ref} from "vue";
 import {FileRejectReason, useDropzone} from "vue3-dropzone";
 import 'splitpanes/dist/splitpanes.css';
 
@@ -111,10 +113,12 @@ const CHART_CONFIG: ChartConfig = {
     borderWidth: 1,
     borderColorRgbHex: 0x707070,
     elementId: "header",
+    paneId: "header-pane",
     overlayElementId: "header-overlay"
   },
   sampleViewConfig: {
     elementId: "thread-chart-sample-view",
+    paneId: "chart-pane",
     overlayElementId: "chart-overlay",
     sampleRenderSize: {
       width: 6,
@@ -139,6 +143,8 @@ const renderer = ref<Renderer>()
 const highlightedSample = ref<ExecutionSampleInfo>()
 const headerPane = ref<ComponentPublicInstance>()
 const chartPane = ref<ComponentPublicInstance>()
+const headerOverlay = ref<HTMLCanvasElement>()
+const chartOverlay = ref<HTMLCanvasElement>()
 const header = ref<SVGGraphicsElement>()
 const chart = ref<HTMLCanvasElement>()
 const threadNameRegex = ref<string>()
@@ -162,6 +168,11 @@ const {
 onMounted(async () => {
   const wasm = await import("../../jfrv-wasm/pkg")
   renderer.value = new wasm.Renderer(CHART_CONFIG)
+  window.addEventListener('resize', syncSize);
+})
+
+onUnmounted(() => {
+  window.removeEventListener('resize', syncSize);
 })
 
 function nullIfEmpty(value: string | undefined): string | null {
@@ -227,6 +238,7 @@ async function loadData(data: Uint8Array) {
   try {
     renderer.value?.initialize(data)
     renderer.value?.render()
+    syncSize()
   } catch (e) {
     state.value = undefined
     throw e
@@ -244,6 +256,23 @@ const syncScroll = (src: "header" | "chart") => {
   }
   if (src === "chart") {
     header.scrollTop = chart.scrollTop
+  }
+}
+
+const syncSize = () => {
+  const header = headerOverlay.value
+  const chart = chartOverlay.value
+  if (header !== undefined) {
+    header.width = headerPane.value?.$el.getBoundingClientRect().width
+    header.height = headerPane.value?.$el.getBoundingClientRect().height
+    header.style.left = `${headerPane.value?.$el.getBoundingClientRect().left}px`
+    header.style.top = `${headerPane.value?.$el.getBoundingClientRect().top}px`
+  }
+  if (chart !== undefined) {
+    chart.width = chartPane.value?.$el.getBoundingClientRect().width
+    chart.height = chartPane.value?.$el.getBoundingClientRect().height
+    chart.style.left = `${chartPane.value?.$el.getBoundingClientRect().left}px`
+    chart.style.top = `${chartPane.value?.$el.getBoundingClientRect().top}px`
   }
 }
 </script>
