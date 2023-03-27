@@ -83,6 +83,10 @@
                     <td class="text-right">timestamp :</td>
                     <td>{{ highlightedSample?.timestamp }}</td>
                   </tr>
+                  <tr>
+                    <td class="text-right">os thread id :</td>
+                    <td>{{ highlightedSample?.osThreadId }}</td>
+                  </tr>
                   </tbody>
                 </table>
               </div>

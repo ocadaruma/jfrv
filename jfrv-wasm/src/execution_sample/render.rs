@@ -71,6 +71,7 @@ pub struct ThreadStateColorConfig {
 pub struct ExecutionSampleInfo {
     pub timestamp: String,
     pub stack_trace: StackTrace,
+    pub os_thread_id: String,
 }
 
 /// State of the current rendered chart
@@ -143,10 +144,6 @@ impl Renderer {
 
         self.header.clear();
         self.chart.clear();
-        self.chart_overlay
-            .raw
-            .set_width(self.sample_view_width() as u32);
-        self.chart_overlay.raw.set_height(chart_height as u32);
         self.chart.raw.set_width(self.sample_view_width() as u32);
         self.chart.raw.set_height(chart_height as u32);
         debug!("start draw frame");
@@ -232,8 +229,6 @@ impl Renderer {
         let header_width = self.header.raw.get_b_box()?.width();
         self.header.set_width(header_width)?;
         self.header.set_height(chart_height)?;
-        self.header_overlay.raw.set_width(header_width as u32);
-        self.header_overlay.raw.set_height(chart_height as u32);
 
         debug!("start render border");
         // render borders based on the header width retrieved from bbox
@@ -312,6 +307,7 @@ impl Renderer {
                             .format("%Y-%m-%d %H:%M:%S.%3f")
                             .to_string(),
                         stack_trace: t.clone(),
+                        os_thread_id: format!("0x{:x}", thread_id),
                     })
                 }),
             _ => None,
