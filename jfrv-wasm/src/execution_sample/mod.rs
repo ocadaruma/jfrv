@@ -239,23 +239,29 @@ impl Profile {
             .and_then(|f| f.as_iter())
             .ok_or_else(|| anyhow!("failed to get stack frames"))?
         {
-            frames.push(StackFrame {
-                type_name: f
-                    .get_field("method")
+            frames.push(StackFrame::new(
+                f.get_field("method")
                     .and_then(|m| m.get_field("type"))
                     .and_then(|t| t.get_field("name"))
                     .and_then(|n| n.get_field("string"))
                     .and_then(|s| <&str>::try_from(s.value).ok())
                     .ok_or_else(|| anyhow!("failed to get type name"))?
                     .to_string(),
-                method_name: f
-                    .get_field("method")
+                f.get_field("method")
                     .and_then(|t| t.get_field("name"))
                     .and_then(|n| n.get_field("string"))
                     .and_then(|s| <&str>::try_from(s.value).ok())
                     .ok_or_else(|| anyhow!("failed to get method name"))?
                     .to_string(),
-            });
+                f.get_field("type")
+                    .and_then(|t| t.get_field("description"))
+                    .and_then(|s| <&str>::try_from(s.value).ok())
+                    .map(|s| s.into())
+                    .ok_or_else(|| anyhow!("failed to get frame type"))?,
+                f.get_field("lineNumber")
+                    .and_then(|l| <i32>::try_from(l.value).ok())
+                    .ok_or_else(|| anyhow!("failed to get line number"))?,
+            ));
         }
 
         Ok(StackTrace { frames })

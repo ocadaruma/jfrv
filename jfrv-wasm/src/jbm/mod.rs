@@ -3,7 +3,7 @@
 #[cfg(target_arch = "wasm32")]
 pub mod render;
 
-use crate::profile::{OffCpu, StackFrame, StackTrace, Thread, ThreadState};
+use crate::profile::{FrameType, OffCpu, StackFrame, StackTrace, Thread, ThreadState};
 use crate::TimeInterval;
 use anyhow::{anyhow, Result};
 use chrono::{Local, NaiveDateTime, TimeZone};
@@ -104,10 +104,12 @@ impl Profile {
                     }
                 }
                 if let Some(sample) = &mut parsing_sample {
-                    sample.frames.push(StackFrame {
-                        type_name: "".to_string(),
-                        method_name: frame.to_string(),
-                    });
+                    sample.frames.push(StackFrame::new(
+                        "".to_string(),
+                        frame.to_string(),
+                        FrameType::Unknown,
+                        0,
+                    ));
                 }
                 continue;
             }

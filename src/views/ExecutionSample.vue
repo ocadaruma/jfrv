@@ -1,114 +1,137 @@
 <template>
-  <!-- Using fixed-position for menubar and absolute-position for chart area -->
-  <!-- with tweaking top looks awkward because just stacking with static position -->
-  <!-- may be straightforward. However, if we do so, we found that chart area's bottom pane (stacktrace view)'s -->
-  <!-- scroll calculation will be broken. -->
-  <!-- TODO: To fix, we need to check how splitpane works -->
-  <div class="fixed top-12 left-0 right-0 h-12 bg-neutral-100 z-40 border-b border-slate-400 p-2">
-    <button class="hover:bg-slate-300 w-24 h-7 text-sm text-center border-2 rounded border-slate-400" @click="open">open file</button>
-    <button class="hover:bg-slate-300 w-24 h-7 text-sm text-center border-2 border-slate-500 absolute right-2" @click="loadDemo">load demo</button>
-    <span class="h-7 ml-2">thread name:</span>
-    <input class="h-7" type="text" placeholder="regex" v-model="threadNameRegex" @change="onFilterChange">
-    <span class="h-7 ml-2">stack trace:</span>
-    <input class="h-7" type="text" placeholder="match regex" v-model="stackTraceMatchRegex" @change="onFilterChange">
-    <span class="h-7 ml-2">&& !</span>
-    <input class="h-7" type="text" placeholder="reject regex" v-model="stackTraceRejectRegex" @change="onFilterChange">
-    <input v-bind="getInputProps()">
-    <div class="flex flex-col space-x-2">
+  <TabView>
+    <!-- Using fixed-position for menubar and absolute-position for chart area -->
+    <!-- with tweaking top looks awkward because just stacking with static position -->
+    <!-- may be straightforward. However, if we do so, we found that chart area's bottom pane (stacktrace view)'s -->
+    <!-- scroll calculation will be broken. -->
+    <!-- TODO: To fix, we need to check how splitpane works -->
+    <div class="fixed top-12 left-0 right-0 h-12 bg-neutral-100 z-40 border-b border-slate-400 p-2">
+      <button class="hover:bg-slate-300 w-24 h-7 text-sm text-center border-2 rounded border-slate-400" @click="open">open file</button>
+      <button class="hover:bg-slate-300 w-24 h-7 text-sm text-center border-2 border-slate-500 absolute right-2" @click="loadDemo">load demo</button>
+      <span class="h-7 ml-2">thread name:</span>
+      <input class="h-7" type="text" placeholder="regex" v-model="threadNameRegex" @change="onFilterChange">
+      <span class="h-7 ml-2">stack trace:</span>
+      <input class="h-7" type="text" placeholder="match regex" v-model="stackTraceMatchRegex" @change="onFilterChange">
+      <span class="h-7 ml-2">&& !</span>
+      <input class="h-7" type="text" placeholder="reject regex" v-model="stackTraceRejectRegex" @change="onFilterChange">
+      <input v-bind="getInputProps()">
+      <button class="disabled:opacity-50 enabled:hover:bg-slate-300 w-8 h-7 ml-2 text-sm text-center border-2 rounded border-slate-400"
+              @click="showFlameGraph"
+              :disabled="state !== 'loaded'">&#x1f525;</button>
+      <div class="flex flex-col space-x-2">
+      </div>
     </div>
-  </div>
-  <canvas ref="headerOverlay"
-          id="header-overlay"
-          class="fixed pointer-events-none z-10"
-          width="0"
-          height="0"/>
-  <canvas ref="chartOverlay"
-          id="chart-overlay"
-          class="fixed pointer-events-none z-10"
-          width="0"
-          height="0"/>
-  <div class="absolute top-12 right-0 left-0 bottom-0">
-    <splitpanes class="default-theme text-sm" horizontal v-bind="getRootProps()" @resize="syncSize()">
-      <pane>
-        <div class="w-full h-full">
-          <splitpanes vertical @resize="syncSize()">
-            <pane size="25"
-                  class="overflow-x-hidden overflow-y-auto scrollbar-none relative"
-                  @scroll="syncScroll('header')"
-                  ref="headerPane"
-                  id="header-pane">
-              <svg ref="header"
-                   id="header"
-                   class="absolute top-0 left-0"
-                   @mousemove="onHeaderMouseMove"
-                   @mouseout="onMouseOut"
-                   width="0"
-                   height="0"/>
-            </pane>
-            <pane class="overflow-auto relative"
-                  @scroll="syncScroll('chart')"
-                  ref="chartPane"
-                  id="chart-pane">
-              <canvas ref="chart"
-                      id="thread-chart-sample-view"
-                      @mousemove="onChartMouseMove"
-                      @mouseout="onMouseOut"
-                      @click="onChartClick"
-                      class="bg-slate-100"
-                      width="0"
-                      height="0"/>
-              <div v-if="!state">
-                <p v-if="isDragActive">Drop here ...</p>
-                <p v-else>Drag & drop OR press "open file" to select JFR file</p>
-              </div>
-            </pane>
-          </splitpanes>
-        </div>
-      </pane>
-      <pane size="40" class="overflow-auto">
-        <div class="w-full h-full">
-          <splitpanes vertical>
-            <pane size="75" class="overflow-auto">
-              <div class="p-2">
-                <div class="flex flex-col space-x-2 text-sm" v-for="(frame, idx) in highlightedSample?.stackTrace.frames" :key="idx">
-                  {{ frame.typeName }}.{{ frame.methodName }}
+    <canvas ref="headerOverlay"
+            id="header-overlay"
+            class="fixed pointer-events-none z-10"
+            width="0"
+            height="0"/>
+    <canvas ref="chartOverlay"
+            id="chart-overlay"
+            class="fixed pointer-events-none z-10"
+            width="0"
+            height="0"/>
+    <div class="absolute top-12 right-0 left-0 bottom-0">
+      <splitpanes class="default-theme text-sm" horizontal v-bind="getRootProps()" @resize="syncSize()">
+        <pane>
+          <div class="w-full h-full">
+            <splitpanes vertical @resize="syncSize()">
+              <pane size="25"
+                    class="overflow-x-hidden overflow-y-auto scrollbar-none relative"
+                    @scroll="syncScroll('header')"
+                    ref="headerPane"
+                    id="header-pane">
+                <svg ref="header"
+                     id="header"
+                     class="absolute top-0 left-0"
+                     @mousemove="onHeaderMouseMove"
+                     @mouseout="onMouseOut"
+                     width="0"
+                     height="0"/>
+              </pane>
+              <pane class="overflow-auto relative"
+                    @scroll="syncScroll('chart')"
+                    ref="chartPane"
+                    id="chart-pane">
+                <canvas ref="chart"
+                        id="thread-chart-sample-view"
+                        @mousemove="onChartMouseMove"
+                        @mouseout="onMouseOut"
+                        @click="onChartClick"
+                        class="bg-slate-100"
+                        width="0"
+                        height="0"/>
+                <div v-if="!state">
+                  <p v-if="isDragActive">Drop here ...</p>
+                  <p v-else>Drag & drop OR press "open file" to select JFR file</p>
                 </div>
-              </div>
-            </pane>
-            <pane>
-              <div class="h-full p-2 overflow-auto">
-                <table class="table-auto whitespace-nowrap">
-                  <tbody>
-                  <tr>
-                    <td class="text-right">timestamp :</td>
-                    <td>{{ highlightedSample?.timestamp }}</td>
-                  </tr>
-                  <tr>
-                    <td class="text-right">os thread id :</td>
-                    <td>{{ highlightedSample?.osThreadId }}</td>
-                  </tr>
-                  </tbody>
-                </table>
-              </div>
-            </pane>
-          </splitpanes>
-        </div>
-      </pane>
-    </splitpanes>
-  </div>
-  <div class="fixed w-72 h-24 bg-neutral-200 border-neutral-500 p-2 border-2 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"
-       v-if="state === 'loading'">Loading...</div>
+              </pane>
+            </splitpanes>
+          </div>
+        </pane>
+        <pane size="40" class="overflow-auto">
+          <div class="w-full h-full">
+            <splitpanes vertical>
+              <pane size="75" class="overflow-auto">
+                <div class="p-2">
+                  <div class="flex flex-col space-x-2 text-sm" v-for="(frame, idx) in highlightedSample?.stackTrace.frames" :key="idx">
+                    {{ frame.name }}
+                  </div>
+                </div>
+              </pane>
+              <pane>
+                <div class="h-full p-2 overflow-auto">
+                  <table class="table-auto whitespace-nowrap">
+                    <tbody>
+                    <tr>
+                      <td class="text-right">timestamp :</td>
+                      <td>{{ highlightedSample?.timestamp }}</td>
+                    </tr>
+                    <tr>
+                      <td class="text-right">os thread id :</td>
+                      <td>{{ highlightedSample?.osThreadId }}</td>
+                    </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </pane>
+            </splitpanes>
+          </div>
+        </pane>
+      </splitpanes>
+    </div>
+    <div class="fixed w-72 h-24 bg-neutral-200 border-neutral-500 p-2 border-2 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"
+         v-if="state === 'loading'">Loading...</div>
+  </TabView>
 </template>
 
 <script lang="ts" setup>
 import { Splitpanes, Pane } from "splitpanes";
 import {
   Renderer,
-  ChartConfig, StackFrame, ExecutionSampleInfo,
+  ChartConfig, ExecutionSampleInfo, FlameGraphConfig,
 } from "../../jfrv-wasm/pkg";
 import {ComponentPublicInstance, onMounted, onUnmounted, ref} from "vue";
 import {FileRejectReason, useDropzone} from "vue3-dropzone";
 import 'splitpanes/dist/splitpanes.css';
+import TabView from "@/components/TabView.vue";
+
+const FLAME_GRAPH_CONFIG: FlameGraphConfig = {
+  chartId: "flame-graph",
+  highlightId: "highlight",
+  highlightTextId: "highlight-text",
+  statusId: "status",
+  colorPalette: {
+    "Interpreted": { baseHex: 0xb2e1b2, rMix: 20, gMix: 20, bMix: 20 },
+    "JitCompiled": { baseHex: 0x50e150, rMix: 30, gMix: 30, bMix: 30 },
+    "Inlined": { baseHex: 0x50cccc, rMix: 30, gMix: 30, bMix: 30 },
+    "Native": { baseHex: 0xe15a5a, rMix: 30, gMix: 40, bMix: 40 },
+    "Cpp": { baseHex: 0xc8c83c, rMix: 30, gMix: 30, bMix: 10 },
+    "Kernel": { baseHex: 0xe17d00, rMix: 30, gMix: 30, bMix: 0 },
+    "C1Compiled": { baseHex: 0xcce880, rMix: 20, gMix: 20, bMix: 20 },
+    "Unknown": { baseHex: 0, rMix: 0, gMix: 0, bMix: 0 },
+  }
+}
 
 const CHART_CONFIG: ChartConfig = {
   defaultMargin: 1,
@@ -233,6 +256,16 @@ async function loadDemo() {
   const data = new Uint8Array(buf)
 
   await loadData(data)
+}
+
+async function showFlameGraph() {
+  const popup = window.open(`${process.env.BASE_URL}flame_graph/index.html`, "_blank")
+  if (!popup) {
+    return
+  }
+  popup.onload = () => {
+    renderer.value?.render_flame_graph(popup, FLAME_GRAPH_CONFIG)
+  }
 }
 
 async function loadData(data: Uint8Array) {

@@ -20,10 +20,6 @@ impl Document {
             .and_then(Canvas::try_new)
     }
 
-    pub fn get_raw_canvas_by_id(&self, id: &str) -> Result<web_sys::HtmlCanvasElement> {
-        self._get_element_by_id::<web_sys::HtmlCanvasElement>(id)
-    }
-
     pub fn get_svg_by_id(&self, id: &str) -> Result<Svg> {
         self._get_element_by_id::<web_sys::SvgGraphicsElement>(id)
             .map(|raw| Svg { raw })
@@ -36,7 +32,20 @@ impl Document {
     fn _get_element_by_id<T: JsCast>(&self, id: &str) -> Result<T> {
         self.raw
             .get_element_by_id(id)
-            .and_then(|e| e.dyn_into::<T>().ok())
+            // We use unchecked cast here, because checked cast fails even for valid cast when we
+            // try to cast an element on a document in different window (e.g. by window.open()).
+            // You can check this behavior by below simple example:
+            //
+            // popup.html:
+            // <html><body><canvas id="canvas"/></body></html>
+            //
+            // index.html:
+            // <script>
+            //   const popup = window.open("popup.html", "_blank")
+            //   const popupCanvas = popup.document.getElementById("canvas")
+            //   console.log(popupCanvas instanceof HTMLCanvasElement) // => false
+            // </script>
+            .map(|e| e.unchecked_into())
             .ok_or_else(|| JsValue::from_str(format!("Element with id {} not found", id).as_str()))
     }
 }
@@ -52,7 +61,7 @@ impl Canvas {
             ctx: raw
                 .get_context("2d")
                 .and_then(|c| c.ok_or_else(|| JsValue::from_str("Failed to get context 2d")))
-                .map(|o| o.dyn_into::<web_sys::CanvasRenderingContext2d>().unwrap())?,
+                .map(|o| o.unchecked_into::<web_sys::CanvasRenderingContext2d>())?,
             raw,
         })
     }

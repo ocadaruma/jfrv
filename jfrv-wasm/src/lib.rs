@@ -1,4 +1,5 @@
 pub mod execution_sample;
+pub mod flame_graph;
 pub mod jbm;
 pub mod profile;
 

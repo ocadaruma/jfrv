@@ -3,15 +3,16 @@
 use crate::execution_sample::{Filter, Profile};
 use crate::profile::{StackTrace, ThreadState};
 use crate::web::{Canvas, Document, Svg};
-use crate::Dimension;
 use crate::Result;
+use crate::{flame_graph, Dimension};
 use chrono::{Local, NaiveDateTime, TimeZone};
 use log::debug;
 
+use crate::flame_graph::render::{FlameGraph, FlameGraphConfig, FlameGraphRenderer};
 use serde::{Deserialize, Serialize};
 use tsify::Tsify;
 use wasm_bindgen::prelude::*;
-use web_sys::HtmlElement;
+use web_sys::{HtmlElement, Window};
 
 #[derive(Default, Deserialize, Serialize, Tsify)]
 #[tsify(into_wasm_abi, from_wasm_abi)]
@@ -88,7 +89,6 @@ pub struct Renderer {
     chart_state: ChartState,
     document: Document,
     header: Svg,
-    header_pane: HtmlElement,
     header_overlay: Canvas,
     chart: Canvas,
     chart_pane: HtmlElement,
@@ -107,7 +107,6 @@ impl Renderer {
             profile: Profile::default(),
             chart_state: ChartState::default(),
             header: document.get_svg_by_id(chart_config.header_config.element_id.as_str())?,
-            header_pane: document.get_element_by_id(chart_config.header_config.pane_id.as_str())?,
             header_overlay: document
                 .get_canvas_by_id(chart_config.header_config.overlay_element_id.as_str())?,
             chart: document
@@ -260,6 +259,15 @@ impl Renderer {
             self.header.raw.append_child(&line)?;
         }
 
+        Ok(())
+    }
+
+    pub fn render_flame_graph(&self, window: Window, config: FlameGraphConfig) -> Result<()> {
+        let flame_graph = FlameGraph::from(
+            &flame_graph::FlameGraph::from_execution_sample(&self.profile),
+            &config.color_palette,
+        );
+        FlameGraphRenderer::try_new(window, flame_graph, config)?.render()?;
         Ok(())
     }
 
