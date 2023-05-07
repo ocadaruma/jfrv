@@ -95,7 +95,6 @@ pub struct Renderer {
     chart_overlay: Canvas,
     row_highlight: JsValue,
     sample_highlight: JsValue,
-    current_flame_graph: Option<FlameGraphRenderer>,
 }
 
 #[wasm_bindgen]
@@ -128,7 +127,6 @@ impl Renderer {
             ),
             document,
             chart_config,
-            current_flame_graph: None,
         })
     }
 
@@ -264,15 +262,18 @@ impl Renderer {
         Ok(())
     }
 
-    pub fn render_flame_graph(&mut self, window: Window, config: FlameGraphConfig) -> Result<()> {
+    pub fn render_flame_graph(
+        &mut self,
+        window: Window,
+        config: FlameGraphConfig,
+    ) -> Result<FlameGraphRenderer> {
         let flame_graph = FlameGraph::from(
             &flame_graph::FlameGraph::from_execution_sample(&self.profile),
             &config.color_palette,
         );
         let renderer = FlameGraphRenderer::try_new(window, flame_graph, config)?;
         renderer.render()?;
-        self.current_flame_graph = Some(renderer);
-        Ok(())
+        Ok(renderer)
     }
 
     pub fn apply_filter(&mut self, filter: Filter) -> Result<()> {
@@ -280,30 +281,6 @@ impl Renderer {
             .apply_filter(filter)
             .map_err(Self::map_js_value)?;
         self.render()
-    }
-
-    pub fn on_flame_graph_mousemove(&mut self, e: web_sys::MouseEvent) -> Result<()> {
-        if let Some(r) = self.current_flame_graph.as_mut() {
-            r.onmousemove(e)
-        } else {
-            Ok(())
-        }
-    }
-
-    pub fn on_flame_graph_mouseout(&mut self, e: web_sys::MouseEvent) -> Result<()> {
-        if let Some(r) = self.current_flame_graph.as_mut() {
-            r.onmouseout(e)
-        } else {
-            Ok(())
-        }
-    }
-
-    pub fn on_flame_graph_click(&mut self, e: web_sys::MouseEvent) -> Result<()> {
-        if let Some(r) = self.current_flame_graph.as_mut() {
-            r.onclick(e)
-        } else {
-            Ok(())
-        }
     }
 
     pub fn on_chart_mouse_move(&mut self, x: f32, y: f32) {

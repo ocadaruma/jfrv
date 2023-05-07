@@ -265,18 +265,18 @@ async function showFlameGraph() {
   }
   popup.onload = async () => {
     const flameGraph = popup.document.getElementById("flame-graph")!
-    await renderer.value?.render_flame_graph(popup, FLAME_GRAPH_CONFIG)
-    flameGraph.onmousemove = (ev) => {
-      renderer.value?.on_flame_graph_mousemove(ev)
+    const flameGraphRenderer = await renderer.value?.render_flame_graph(popup, FLAME_GRAPH_CONFIG)
+    if (!flameGraphRenderer) {
+      return
     }
-    flameGraph.onmouseout = (ev) => {
-      renderer.value?.on_flame_graph_mouseout(ev)
+    flameGraph.onmousemove = (e) => {
+      flameGraphRenderer.onmousemove(e);
     }
-    flameGraph.onclick = (ev) => {
-      renderer.value?.on_flame_graph_click(ev)
+    flameGraph.onmouseout = (e) => {
+      flameGraphRenderer.onmouseout(e);
     }
-    flameGraph.ondblclick = (ev) => {
-      renderer.value?.on_flame_graph_dblclick(ev)
+    flameGraph.onclick = (e) => {
+      flameGraphRenderer.onclick(e);
     }
   }
 }
