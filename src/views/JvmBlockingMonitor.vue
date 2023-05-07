@@ -1,118 +1,121 @@
 <template>
-  <!-- Using fixed-position for menubar and absolute-position for chart area -->
-  <!-- with tweaking top looks awkward because just stacking with static position -->
-  <!-- may be straightforward. However, if we do so, we found that chart area's bottom pane (stacktrace view)'s -->
-  <!-- scroll calculation will be broken. -->
-  <!-- TODO: To fix, we need to check how splitpane works -->
-  <div class="fixed top-12 left-0 right-0 h-12 bg-neutral-100 z-40 border-b border-slate-400 p-2">
-    <button class="hover:bg-slate-300 w-24 h-7 text-sm text-center border-2 rounded border-slate-400" @click="open">open file</button>
-    <button class="hover:bg-slate-300 w-24 h-7 text-sm text-center border-2 border-slate-500 absolute right-2" @click="loadDemo">load demo</button>
-    <span class="h-7 ml-2">thread name:</span>
-    <input class="h-7" type="text" placeholder="regex" v-model="filterRegex" @change="onFilterChange">
-    <input v-bind="getInputProps()">
-    <div class="flex flex-col space-x-2">
+  <TabView>
+    <!-- Using fixed-position for menubar and absolute-position for chart area -->
+    <!-- with tweaking top looks awkward because just stacking with static position -->
+    <!-- may be straightforward. However, if we do so, we found that chart area's bottom pane (stacktrace view)'s -->
+    <!-- scroll calculation will be broken. -->
+    <!-- TODO: To fix, we need to check how splitpane works -->
+    <div class="fixed top-12 left-0 right-0 h-12 bg-neutral-100 z-40 border-b border-slate-400 p-2">
+      <button class="hover:bg-slate-300 w-24 h-7 text-sm text-center border-2 rounded border-slate-400" @click="open">open file</button>
+      <button class="hover:bg-slate-300 w-24 h-7 text-sm text-center border-2 border-slate-500 absolute right-2" @click="loadDemo">load demo</button>
+      <span class="h-7 ml-2">thread name:</span>
+      <input class="h-7" type="text" placeholder="regex" v-model="filterRegex" @change="onFilterChange">
+      <input v-bind="getInputProps()">
+      <div class="flex flex-col space-x-2">
+      </div>
     </div>
-  </div>
-  <div class="absolute top-12 right-0 left-0 bottom-0">
-    <splitpanes class="default-theme text-sm" horizontal v-bind="getRootProps()">
-      <pane>
-        <div class="w-full h-full">
-          <splitpanes vertical>
-            <pane size="25"
-                  class="overflow-x-hidden overflow-y-auto scrollbar-none relative"
-                  @scroll="syncScroll('header')"
-                  ref="headerPane">
-              <canvas ref="header-overlay"
-                      id="jbm-header-overlay"
-                      class="absolute top-0 left-0 pointer-events-none"
-                      width="0"
-                      height="0"/>
-              <svg ref="header"
-                   id="jbm-header"
-                   class="absolute top-0 left-0"
-                   @mousemove="onHeaderMouseMove"
-                   @mouseout="onMouseOut"
-                   width="0"
-                   height="0"/>
-            </pane>
-            <pane class="overflow-auto relative"
-                  @scroll="syncScroll('chart')"
-                  ref="chartPane">
-              <canvas ref="chart-overlay"
-                      id="jbm-chart-overlay"
-                      class="absolute top-0 left-0 pointer-events-none"
-                      width="0"
-                      height="0"/>
-              <canvas ref="chart"
-                      id="jbm-thread-chart-sample-view"
-                      @mousemove="onChartMouseMove"
-                      @mouseout="onMouseOut"
-                      @click="onChartClick"
-                      class="bg-slate-100"
-                      width="0"
-                      height="0"/>
-              <div v-if="!state">
-                <p v-if="isDragActive">Drop here ...</p>
-                <p v-else>Drag & drop OR press "open file" to select jbm log file</p>
-              </div>
-            </pane>
-          </splitpanes>
-        </div>
-      </pane>
-      <pane size="40">
-        <div class="w-full h-full">
-          <splitpanes vertical>
-            <pane size="75" class="overflow-auto">
-              <div class="p-2">
-                <div class="flex flex-col space-x-2 text-sm"
-                     v-for="(frame, idx) in highlightedSample?.stackTrace?.frames"
-                     :key="idx">
-                  {{ frame.methodName }}
+    <div class="absolute top-12 right-0 left-0 bottom-0">
+      <splitpanes class="default-theme text-sm" horizontal v-bind="getRootProps()">
+        <pane>
+          <div class="w-full h-full">
+            <splitpanes vertical>
+              <pane size="25"
+                    class="overflow-x-hidden overflow-y-auto scrollbar-none relative"
+                    @scroll="syncScroll('header')"
+                    ref="headerPane">
+                <canvas ref="header-overlay"
+                        id="jbm-header-overlay"
+                        class="absolute top-0 left-0 pointer-events-none"
+                        width="0"
+                        height="0"/>
+                <svg ref="header"
+                     id="jbm-header"
+                     class="absolute top-0 left-0"
+                     @mousemove="onHeaderMouseMove"
+                     @mouseout="onMouseOut"
+                     width="0"
+                     height="0"/>
+              </pane>
+              <pane class="overflow-auto relative"
+                    @scroll="syncScroll('chart')"
+                    ref="chartPane">
+                <canvas ref="chart-overlay"
+                        id="jbm-chart-overlay"
+                        class="absolute top-0 left-0 pointer-events-none"
+                        width="0"
+                        height="0"/>
+                <canvas ref="chart"
+                        id="jbm-thread-chart-sample-view"
+                        @mousemove="onChartMouseMove"
+                        @mouseout="onMouseOut"
+                        @click="onChartClick"
+                        class="bg-slate-100"
+                        width="0"
+                        height="0"/>
+                <div v-if="!state">
+                  <p v-if="isDragActive">Drop here ...</p>
+                  <p v-else>Drag & drop OR press "open file" to select jbm log file</p>
                 </div>
-              </div>
-            </pane>
-            <pane>
-              <div class="h-full p-2 overflow-auto">
-                <table class="table-auto whitespace-nowrap">
-                  <tbody>
-                  <tr>
-                    <td class="text-right">thread :</td>
-                    <td>{{ highlightedSample?.threadName }}</td>
-                  </tr>
-                  <tr>
-                    <td class="text-right">offcpu start :</td>
-                    <td>{{ highlightedSample?.offcpuStart }}</td>
-                  </tr>
-                  <tr>
-                    <td class="text-right">offcpu end :</td>
-                    <td>{{ highlightedSample?.offcpuEnd }}</td>
-                  </tr>
-                  <tr>
-                    <td class="text-right">duration (ms) :</td>
-                    <td>{{ highlightedSample?.durationMillis }}</td>
-                  </tr>
-                  </tbody>
-                </table>
-              </div>
-            </pane>
-          </splitpanes>
-        </div>
-      </pane>
-    </splitpanes>
-  </div>
-  <div class="fixed w-72 h-24 bg-neutral-200 border-neutral-500 p-2 border-2 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"
-       v-if="state === 'loading'">Loading...</div>
+              </pane>
+            </splitpanes>
+          </div>
+        </pane>
+        <pane size="40">
+          <div class="w-full h-full">
+            <splitpanes vertical>
+              <pane size="75" class="overflow-auto">
+                <div class="p-2">
+                  <div class="flex flex-col space-x-2 text-sm"
+                       v-for="(frame, idx) in highlightedSample?.stackTrace?.frames"
+                       :key="idx">
+                    {{ frame.name }}
+                  </div>
+                </div>
+              </pane>
+              <pane>
+                <div class="h-full p-2 overflow-auto">
+                  <table class="table-auto whitespace-nowrap">
+                    <tbody>
+                    <tr>
+                      <td class="text-right">thread :</td>
+                      <td>{{ highlightedSample?.threadName }}</td>
+                    </tr>
+                    <tr>
+                      <td class="text-right">offcpu start :</td>
+                      <td>{{ highlightedSample?.offcpuStart }}</td>
+                    </tr>
+                    <tr>
+                      <td class="text-right">offcpu end :</td>
+                      <td>{{ highlightedSample?.offcpuEnd }}</td>
+                    </tr>
+                    <tr>
+                      <td class="text-right">duration (ms) :</td>
+                      <td>{{ highlightedSample?.durationMillis }}</td>
+                    </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </pane>
+            </splitpanes>
+          </div>
+        </pane>
+      </splitpanes>
+    </div>
+    <div class="fixed w-72 h-24 bg-neutral-200 border-neutral-500 p-2 border-2 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"
+         v-if="state === 'loading'">Loading...</div>
+  </TabView>
 </template>
 
 <script lang="ts" setup>
 import { Splitpanes, Pane } from "splitpanes";
 import {
   JbmRenderer,
-  JbmChartConfig, StackFrame, JbmSampleInfo,
+  JbmChartConfig, JbmSampleInfo,
 } from "../../jfrv-wasm/pkg";
 import {ComponentPublicInstance, onMounted, ref} from "vue";
 import {FileRejectReason, useDropzone} from "vue3-dropzone";
 import 'splitpanes/dist/splitpanes.css';
+import TabView from "@/components/TabView.vue";
 
 const CHART_CONFIG: JbmChartConfig = {
   defaultMargin: 1,

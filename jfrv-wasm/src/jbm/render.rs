@@ -4,7 +4,7 @@ use crate::jbm::{JbmFilter, Profile};
 use crate::web::{Canvas, Document, Svg};
 use crate::Result;
 use chrono::{Duration, Local, NaiveDateTime, TimeZone};
-use log::{debug, info};
+use log::debug;
 
 use crate::profile::{StackTrace, ThreadState};
 use serde::{Deserialize, Serialize};

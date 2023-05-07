@@ -4,9 +4,8 @@
 use serde::{Deserialize, Serialize};
 #[cfg(target_arch = "wasm32")]
 use tsify::Tsify;
-
-pub const THREAD_STATE_RUNNING: &str = "STATE_RUNNABLE";
-pub const THREAD_STATE_SLEEPING: &str = "STATE_SLEEPING";
+#[cfg(target_arch = "wasm32")]
+use wasm_bindgen::prelude::*;
 
 #[derive(Clone, Deserialize, Serialize, Eq, PartialEq, Hash)]
 #[cfg_attr(target_arch = "wasm32", derive(Tsify))]
@@ -15,6 +14,47 @@ pub const THREAD_STATE_SLEEPING: &str = "STATE_SLEEPING";
 pub struct StackFrame {
     pub type_name: String,
     pub method_name: String,
+    pub frame_type: FrameType,
+    pub line_number: i32,
+    name: String,
+}
+
+impl StackFrame {
+    pub fn new(
+        type_name: String,
+        method_name: String,
+        frame_type: FrameType,
+        line_number: i32,
+    ) -> Self {
+        let name = match frame_type {
+            FrameType::Interpreted
+            | FrameType::JitCompiled
+            | FrameType::Inlined
+            | FrameType::C1Compiled
+                if !type_name.is_empty() =>
+            {
+                let line_num = if line_number > 0 {
+                    format!(":{}", line_number)
+                } else {
+                    "".to_string()
+                };
+                format!("{}.{}{}", type_name, method_name, line_num)
+            }
+            _ => method_name.clone(),
+        };
+
+        Self {
+            type_name,
+            method_name,
+            frame_type,
+            line_number,
+            name,
+        }
+    }
+
+    pub fn name(&self) -> &str {
+        self.name.as_str()
+    }
 }
 
 #[derive(Clone, Default, Deserialize, Serialize, Eq, PartialEq, Hash)]
@@ -41,11 +81,58 @@ pub enum ThreadState {
     Sleeping,
 }
 
+impl ThreadState {
+    const THREAD_STATE_RUNNING: &'static str = "STATE_RUNNABLE";
+    const THREAD_STATE_SLEEPING: &'static str = "STATE_SLEEPING";
+}
+
 impl From<&str> for ThreadState {
     fn from(s: &str) -> Self {
         match s {
-            THREAD_STATE_RUNNING => Self::Runnable,
-            THREAD_STATE_SLEEPING => Self::Sleeping,
+            Self::THREAD_STATE_RUNNING => Self::Runnable,
+            Self::THREAD_STATE_SLEEPING => Self::Sleeping,
+            _ => Self::Unknown,
+        }
+    }
+}
+
+/// Compact representation of frame type (which is originally String)
+#[derive(Copy, Clone, Debug, Default, Deserialize, Serialize, Eq, PartialEq, Hash)]
+#[cfg_attr(target_arch = "wasm32", derive(Tsify))]
+#[cfg_attr(target_arch = "wasm32", tsify(into_wasm_abi, from_wasm_abi))]
+#[repr(u8)]
+pub enum FrameType {
+    Interpreted = 0,
+    JitCompiled,
+    Inlined,
+    Native,
+    Cpp,
+    Kernel,
+    C1Compiled,
+    #[default]
+    Unknown = 255,
+}
+
+impl FrameType {
+    const FRAME_INTERPRETED: &'static str = "Interpreted";
+    const FRAME_JIT_COMPILED: &'static str = "JIT compiled";
+    const FRAME_INLINED: &'static str = "Inlined";
+    const FRAME_NATIVE: &'static str = "Native";
+    const FRAME_CPP: &'static str = "C++";
+    const FRAME_KERNEL: &'static str = "Kernel";
+    const FRAME_C1_COMPILED: &'static str = "C1 compiled";
+}
+
+impl From<&str> for FrameType {
+    fn from(s: &str) -> Self {
+        match s {
+            Self::FRAME_INTERPRETED => Self::Interpreted,
+            Self::FRAME_JIT_COMPILED => Self::JitCompiled,
+            Self::FRAME_INLINED => Self::Inlined,
+            Self::FRAME_NATIVE => Self::Native,
+            Self::FRAME_CPP => Self::Cpp,
+            Self::FRAME_KERNEL => Self::Kernel,
+            Self::FRAME_C1_COMPILED => Self::C1Compiled,
             _ => Self::Unknown,
         }
     }

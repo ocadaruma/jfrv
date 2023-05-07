@@ -1,6 +1,6 @@
 import {createRouter, createWebHashHistory, RouteRecordRaw} from 'vue-router'
-import ExecutionSample from '../views/ExecutionSample.vue'
-import JvmBlockingMonitor from '../views/JvmBlockingMonitor.vue'
+import ExecutionSample from '@/views/ExecutionSample.vue'
+import JvmBlockingMonitor from '@/views/JvmBlockingMonitor.vue'
 
 const routes: Array<RouteRecordRaw> = [
   {
@@ -16,7 +16,7 @@ const routes: Array<RouteRecordRaw> = [
     path: '/jbm',
     name: 'jbm',
     component: JvmBlockingMonitor
-  }
+  },
 ]
 
 const router = createRouter({
