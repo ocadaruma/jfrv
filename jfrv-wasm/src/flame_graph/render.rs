@@ -1,6 +1,7 @@
 use crate::profile::FrameType;
 use crate::web::{Canvas, Document};
 use crate::{flame_graph, Result};
+use num_format::{Locale, ToFormattedString};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use tsify::Tsify;
@@ -32,12 +33,14 @@ pub struct FrameColorConfig {
 pub struct FlameGraphRenderer {
     document: Document,
     flame_graph: FlameGraph,
-    config: FlameGraphConfig,
+    _config: FlameGraphConfig,
     chart: Canvas,
     highlight: HtmlElement,
     highlight_text: HtmlElement,
     status: HtmlElement,
     device_pixel_ratio: f64,
+    root_index: (usize, usize),
+    selected_index: Option<(usize, usize)>,
 }
 
 #[wasm_bindgen]
@@ -58,12 +61,14 @@ impl FlameGraphRenderer {
         Ok(Self {
             document,
             flame_graph,
-            config,
+            _config: config,
             chart,
             highlight,
             highlight_text,
             status,
             device_pixel_ratio: window.device_pixel_ratio(),
+            root_index: (0, 0),
+            selected_index: None,
         })
     }
 
@@ -73,8 +78,8 @@ impl FlameGraphRenderer {
             format!("{}px", 16 * self.flame_graph.levels.len()).as_str(),
         )?;
 
-        let chart_width = self.chart.raw.offset_width() as usize;
-        let chart_height = self.chart.raw.offset_height() as usize;
+        let chart_width = self.chart_width();
+        let chart_height = self.chart_height();
 
         // fix the canvas size to current size
         self.chart
@@ -96,26 +101,130 @@ impl FlameGraphRenderer {
                 .set_font(&body.style().get_property_value("font")?);
         }
 
-        let x0 = self.flame_graph.levels[0].frames[0].x;
-        let x1 = x0 + self.flame_graph.levels[0].frames[0].count;
-        let px = chart_width as f64 / self.flame_graph.levels[0].frames[0].count as f64;
+        self.inner_render()?;
+
+        Ok(())
+    }
+
+    pub fn onmousemove(&mut self, e: web_sys::MouseEvent) -> Result<()> {
+        let level = (self.chart_height() as usize - e.offset_y() as usize) / 16;
+        if level < self.flame_graph.levels.len() {
+            if let Some(frame_idx) = self.find_frame(
+                &self.flame_graph.levels[level],
+                e.offset_x() as f64 / self.ratio() + self.root().x as f64,
+            ) {
+                self.selected_index = Some((level, frame_idx));
+                let frame = &self.flame_graph.levels[level].frames[frame_idx];
+
+                let highlight_left = (frame.x as isize - self.root().x as isize).max(0) as f64
+                    * self.ratio()
+                    + self.chart.raw.offset_left() as f64;
+                let highlight_width = frame.count.min(self.root().count) as f64 * self.ratio();
+                let highlight_top =
+                    (self.chart_height() - (level + 1) * 16) + self.chart.raw.offset_top() as usize;
+                self.highlight
+                    .style()
+                    .set_property("left", format!("{}px", highlight_left).as_str())?;
+                self.highlight
+                    .style()
+                    .set_property("width", format!("{}px", highlight_width).as_str())?;
+                self.highlight
+                    .style()
+                    .set_property("top", format!("{}px", highlight_top).as_str())?;
+                self.highlight.style().set_property("display", "block")?;
+                self.highlight_text.set_text_content(Some(&frame.title));
+
+                let num = frame.count;
+                let denom = self.flame_graph.levels[0].frames[0].count;
+                let percentage = format!("{:.2}", 100.0 * num as f64 / denom as f64);
+                let title = format!(
+                    "{}\n({} samples{}, {}%)",
+                    frame.title,
+                    frame.count.to_formatted_string(&Locale::en),
+                    frame.detail.description,
+                    if num >= denom { "100" } else { &percentage }
+                );
+                self.chart.raw.set_title(&title);
+                self.chart.raw.style().set_property("cursor", "pointer")?;
+                self.status
+                    .set_text_content(Some(format!("Function: {}", title).as_str()));
+
+                return Ok(());
+            }
+        }
+        self.onmouseout(e)?;
+        Ok(())
+    }
+
+    pub fn onmouseout(&mut self, _e: web_sys::MouseEvent) -> Result<()> {
+        self.highlight.style().set_property("display", "none")?;
+        self.status.set_text_content(Some("\u{a0}")); // fill nbsp by default
+        self.chart.raw.set_title("");
+        self.chart.raw.style().set_property("cursor", "")?;
+        self.selected_index = None;
+        Ok(())
+    }
+
+    pub fn onclick(&mut self, _e: web_sys::MouseEvent) -> Result<()> {
+        if let Some(idx) = self.selected_index {
+            if idx != self.root_index {
+                self.root_index = idx;
+                self.inner_render()?;
+
+                // manually fire onmousemove to update highlight after rendered with new root
+                return self.onmousemove(_e);
+            }
+        }
+        Ok(())
+    }
+
+    fn root_level(&self) -> usize {
+        self.root_index.0
+    }
+
+    fn root(&self) -> &Frame {
+        &self.flame_graph.levels[self.root_index.0].frames[self.root_index.1]
+    }
+
+    fn ratio(&self) -> f64 {
+        self.chart_width() as f64 / self.root().count as f64
+    }
+
+    fn inner_render(&self) -> Result<()> {
+        self.chart.ctx.set_fill_style(&JsValue::from_str("#ffffff"));
+        self.chart.ctx.fill_rect(
+            0.0,
+            0.0,
+            self.chart_width() as f64,
+            self.chart_height() as f64,
+        );
+
+        let x0 = self.root().x as isize;
+        let x1 = x0 + self.root().count as isize;
+        let ratio = self.ratio();
         for (h, level) in self.flame_graph.levels.iter().enumerate() {
-            let y = chart_height - (h + 1) * 16;
+            let y = self.chart_height() - (h + 1) * 16;
             for frame in level.frames.iter() {
-                // why this condition is necessary?
-                if frame.x < x1 && frame.x + frame.count > x0 {
+                // render the frame only when it has horizontal intersection with root frame
+                if (frame.x as isize) < x1 && (frame.x + frame.count) as isize > x0 {
+                    let frame_x = (frame.x as isize - x0).max(0) as f64 * ratio;
+                    let frame_y = y as f64;
+                    let frame_width = frame.count as f64 * ratio;
                     self.chart
                         .ctx
                         .set_fill_style(&JsValue::from_str(&frame.frame_color_hex));
                     self.chart.ctx.fill_rect(
-                        (frame.x - x0) as f64 * px,
-                        y as f64,
-                        frame.count as f64 * px,
+                        frame_x,
+                        frame_y,
+                        // this may exceeds the canvas area when we render frames
+                        // which are below root, but we don't care
+                        frame.count as f64 * ratio,
                         15.0,
                     );
 
-                    if frame.count as f64 * px >= 21.0 {
-                        let chars = ((frame.count as f64 * px) / 7.0).floor() as usize;
+                    // render text only when a frame has certain width
+                    if frame_width >= 21.0 {
+                        let chars = (frame_width / 7.0).floor() as usize;
                         self.chart.ctx.set_fill_style(&JsValue::from_str("#000000"));
                         let title = if frame.title.len() <= chars {
                             frame.title.clone()
@@ -124,16 +233,62 @@ impl FlameGraphRenderer {
                         };
                         self.chart.ctx.fill_text_with_max_width(
                             &title,
-                            (frame.x - x0) as f64 * px + 3.0,
-                            y as f64 + 12.0,
-                            frame.count as f64 * px - 6.0,
+                            frame_x + 3.0, // add padding
+                            frame_y + 12.0,
+                            frame_width - 6.0,
                         )?;
+                    }
+
+                    if h < self.root_level() {
+                        self.chart
+                            .ctx
+                            .set_fill_style(&JsValue::from_str("rgba(255, 255, 255, 0.5)"));
+                        self.chart
+                            .ctx
+                            .fill_rect(frame_x, frame_y, frame_width, 15.0);
                     }
                 }
             }
         }
-
         Ok(())
+    }
+
+    fn chart_width(&self) -> usize {
+        self.chart.raw.offset_width() as usize
+    }
+
+    fn chart_height(&self) -> usize {
+        self.chart.raw.offset_height() as usize
+    }
+
+    // perform binary search against the frames in the level
+    fn find_frame(&self, level: &Level, x: f64) -> Option<usize> {
+        let mut left = 0;
+        let mut right = level.frames.len() - 1;
+
+        while left <= right {
+            let mid = (left + right) / 2;
+            let f = &level.frames[mid];
+            if f.x as f64 > x {
+                right = if mid > 0 { mid - 1 } else { break };
+            } else if (f.x + f.count) as f64 <= x {
+                left = mid + 1;
+            } else {
+                return Some(mid);
+            }
+        }
+        if let Some(frame) = level.frames.get(left) {
+            if (frame.x as f64 - x) * self.ratio() < 0.5 {
+                return Some(left);
+            }
+        }
+        if let Some(frame) = level.frames.get(right) {
+            if (frame.x + frame.count) as f64 * self.ratio() < 0.5 {
+                return Some(right);
+            }
+        }
+
+        None
     }
 }
 
