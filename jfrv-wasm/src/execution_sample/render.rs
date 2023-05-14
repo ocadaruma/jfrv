@@ -262,24 +262,28 @@ impl Renderer {
         Ok(())
     }
 
-    pub fn render_flame_graph(
+    pub fn flame_graph(
         &mut self,
-        window: Window,
         config: FlameGraphConfig,
-    ) -> Result<FlameGraphRenderer> {
-        let flame_graph = FlameGraph::from(
+    ) -> FlameGraph {
+        FlameGraph::from(
             &flame_graph::FlameGraph::from_execution_sample(&self.profile),
             &config.color_palette,
-        );
-        let renderer = FlameGraphRenderer::try_new(window, flame_graph, config)?;
-        renderer.render()?;
-        Ok(renderer)
+        )
     }
 
     pub fn apply_filter(&mut self, filter: Filter) -> Result<()> {
         self.profile
             .apply_filter(filter)
             .map_err(Self::map_js_value)?;
+        self.render()
+    }
+
+    pub fn change_scale(&mut self, sample_width: f32) -> Result<()> {
+        self.chart_config
+            .sample_view_config
+            .sample_render_size
+            .width = sample_width;
         self.render()
     }
 

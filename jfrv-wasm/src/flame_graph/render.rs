@@ -16,6 +16,7 @@ pub struct FlameGraphConfig {
     pub highlight_id: String,
     pub highlight_text_id: String,
     pub status_id: String,
+    pub font: String,
     pub color_palette: HashMap<FrameType, FrameColorConfig>,
 }
 
@@ -33,7 +34,7 @@ pub struct FrameColorConfig {
 pub struct FlameGraphRenderer {
     document: Document,
     flame_graph: FlameGraph,
-    _config: FlameGraphConfig,
+    config: FlameGraphConfig,
     chart: Canvas,
     highlight: HtmlElement,
     highlight_text: HtmlElement,
@@ -47,13 +48,10 @@ pub struct FlameGraphRenderer {
 impl FlameGraphRenderer {
     #[wasm_bindgen(constructor)]
     pub fn try_new(
-        window: Window,
         flame_graph: FlameGraph,
         config: FlameGraphConfig,
     ) -> Result<FlameGraphRenderer> {
-        let document = Document {
-            raw: window.document().unwrap(),
-        };
+        let document = Document::try_new()?;
         let chart = document.get_canvas_by_id(config.chart_id.as_str())?;
         let highlight = document.get_element_by_id(config.highlight_id.as_str())?;
         let highlight_text = document.get_element_by_id(config.highlight_text_id.as_str())?;
@@ -61,12 +59,12 @@ impl FlameGraphRenderer {
         Ok(Self {
             document,
             flame_graph,
-            _config: config,
+            config,
             chart,
             highlight,
             highlight_text,
             status,
-            device_pixel_ratio: window.device_pixel_ratio(),
+            device_pixel_ratio: web_sys::window().unwrap().device_pixel_ratio(),
             root_index: (0, 0),
             selected_index: None,
         })
@@ -98,7 +96,7 @@ impl FlameGraphRenderer {
         if let Some(body) = self.document.raw.body() {
             self.chart
                 .ctx
-                .set_font(&body.style().get_property_value("font")?);
+                .set_font(self.config.font.as_str());
         }
 
         self.inner_render()?;

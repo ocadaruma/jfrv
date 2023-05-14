@@ -18,8 +18,22 @@
       <button class="disabled:opacity-50 enabled:hover:bg-slate-300 w-8 h-7 ml-2 text-sm text-center border-2 rounded border-slate-400"
               @click="showFlameGraph"
               :disabled="state !== 'loaded'">&#x1f525;</button>
-      <div class="flex flex-col space-x-2">
-      </div>
+    </div>
+    <div class="fixed top-24 left-0 right-0 h-8 bg-neutral-50 z-40 border-b border-slate-400 p-0.5">
+      <button class="disabled:opacity-50 enabled:hover:bg-slate-300 w-12 h-5 ml-2 text-xs text-center border-2 border-slate-400"
+              @click="onScaleChange(1)"
+              :disabled="state !== 'loaded'">reset</button>
+      <button class="disabled:opacity-50 enabled:hover:bg-slate-300 w-5 h-5 ml-2 text-xs text-center border-2 border-slate-400"
+              @click="onScaleChange(currentScale / 1.5)"
+              :disabled="state !== 'loaded'">-</button>
+      <button class="disabled:opacity-50 enabled:hover:bg-slate-300 w-5 h-5 ml-2 text-xs text-center border-2 border-slate-400"
+              @click="onScaleChange(currentScale * 1.5)"
+              :disabled="state !== 'loaded'">+</button>
+      <canvas ref="timeAxis"
+              id="time-axis"
+              class="absolute z-10 top-0 border-l border-slate-400 cursor-crosshair"
+              width="0"
+              height="0"/>
     </div>
     <canvas ref="headerOverlay"
             id="header-overlay"
@@ -31,7 +45,7 @@
             class="fixed pointer-events-none z-10"
             width="0"
             height="0"/>
-    <div class="absolute top-12 right-0 left-0 bottom-0">
+    <div class="absolute top-20 right-0 left-0 bottom-0">
       <splitpanes class="default-theme text-sm" horizontal v-bind="getRootProps()" @resize="syncSize()">
         <pane>
           <div class="w-full h-full">
@@ -109,29 +123,13 @@
 import { Splitpanes, Pane } from "splitpanes";
 import {
   Renderer,
-  ChartConfig, ExecutionSampleInfo, FlameGraphConfig,
+  ChartConfig, ExecutionSampleInfo,
 } from "../../jfrv-wasm/pkg";
 import {ComponentPublicInstance, onMounted, onUnmounted, ref} from "vue";
 import {FileRejectReason, useDropzone} from "vue3-dropzone";
 import 'splitpanes/dist/splitpanes.css';
 import TabView from "@/components/TabView.vue";
-
-const FLAME_GRAPH_CONFIG: FlameGraphConfig = {
-  chartId: "flame-graph",
-  highlightId: "highlight",
-  highlightTextId: "highlight-text",
-  statusId: "status",
-  colorPalette: {
-    "Interpreted": { baseHex: 0xb2e1b2, rMix: 20, gMix: 20, bMix: 20 },
-    "JitCompiled": { baseHex: 0x50e150, rMix: 30, gMix: 30, bMix: 30 },
-    "Inlined": { baseHex: 0x50cccc, rMix: 30, gMix: 30, bMix: 30 },
-    "Native": { baseHex: 0xe15a5a, rMix: 30, gMix: 40, bMix: 40 },
-    "Cpp": { baseHex: 0xc8c83c, rMix: 30, gMix: 30, bMix: 10 },
-    "Kernel": { baseHex: 0xe17d00, rMix: 30, gMix: 30, bMix: 0 },
-    "C1Compiled": { baseHex: 0xcce880, rMix: 20, gMix: 20, bMix: 20 },
-    "Unknown": { baseHex: 0, rMix: 0, gMix: 0, bMix: 0 },
-  }
-}
+import {FLAME_GRAPH_CONFIG, FlameGraphWindow} from "@/views/flame-graph";
 
 const CHART_CONFIG: ChartConfig = {
   defaultMargin: 1,
@@ -174,10 +172,12 @@ const headerOverlay = ref<HTMLCanvasElement>()
 const chartOverlay = ref<HTMLCanvasElement>()
 const header = ref<SVGGraphicsElement>()
 const chart = ref<HTMLCanvasElement>()
+const timeAxis = ref<HTMLCanvasElement>()
 const threadNameRegex = ref<string>()
 const stackTraceMatchRegex = ref<string>()
 const stackTraceRejectRegex = ref<string>()
 const state = ref<"loading" | "loaded">()
+const currentScale = ref<number>()
 
 const {
   getRootProps,
@@ -195,6 +195,7 @@ const {
 onMounted(async () => {
   const wasm = await import("../../jfrv-wasm/pkg")
   renderer.value = new wasm.Renderer(CHART_CONFIG)
+  currentScale.value = 1;
   window.addEventListener('resize', syncSize);
 })
 
@@ -258,27 +259,26 @@ async function loadDemo() {
   await loadData(data)
 }
 
-async function showFlameGraph() {
-  const popup = window.open(`${process.env.BASE_URL}flame_graph/index.html`, "_blank")
-  if (!popup) {
+async function onScaleChange(scale: number) {
+  let newWidth = CHART_CONFIG.sampleViewConfig.sampleRenderSize.width * scale
+
+  const maxWidth = CHART_CONFIG.sampleViewConfig.sampleRenderSize.width * 8
+  const minWidth = 1
+
+  if (newWidth < minWidth || newWidth > maxWidth) {
     return
   }
-  popup.onload = async () => {
-    const flameGraph = popup.document.getElementById("flame-graph")!
-    const flameGraphRenderer = await renderer.value?.render_flame_graph(popup, FLAME_GRAPH_CONFIG)
-    if (!flameGraphRenderer) {
-      return
-    }
-    flameGraph.onmousemove = (e) => {
-      flameGraphRenderer.onmousemove(e);
-    }
-    flameGraph.onmouseout = (e) => {
-      flameGraphRenderer.onmouseout(e);
-    }
-    flameGraph.onclick = (e) => {
-      flameGraphRenderer.onclick(e);
-    }
+  currentScale.value = scale
+  await renderer.value?.change_scale(newWidth)
+}
+
+async function showFlameGraph() {
+  const flameGraph = await renderer.value?.flame_graph(FLAME_GRAPH_CONFIG);
+  if (!flameGraph) {
+    return
   }
+
+  FlameGraphWindow.open(flameGraph)
 }
 
 async function loadData(data: Uint8Array) {
@@ -312,17 +312,23 @@ const syncScroll = (src: "header" | "chart") => {
 const syncSize = () => {
   const header = headerOverlay.value
   const chart = chartOverlay.value
-  if (header !== undefined) {
-    header.width = headerPane.value?.$el.getBoundingClientRect().width
-    header.height = headerPane.value?.$el.getBoundingClientRect().height
-    header.style.left = `${headerPane.value?.$el.getBoundingClientRect().left}px`
-    header.style.top = `${headerPane.value?.$el.getBoundingClientRect().top}px`
+  const time = timeAxis.value
+  if (!(header && chart && time)) {
+    return
   }
-  if (chart !== undefined) {
-    chart.width = chartPane.value?.$el.getBoundingClientRect().width
-    chart.height = chartPane.value?.$el.getBoundingClientRect().height
-    chart.style.left = `${chartPane.value?.$el.getBoundingClientRect().left}px`
-    chart.style.top = `${chartPane.value?.$el.getBoundingClientRect().top}px`
-  }
+
+  header.width = headerPane.value?.$el.getBoundingClientRect().width
+  header.height = headerPane.value?.$el.getBoundingClientRect().height
+  header.style.left = `${headerPane.value?.$el.getBoundingClientRect().left}px`
+  header.style.top = `${headerPane.value?.$el.getBoundingClientRect().top}px`
+
+  chart.width = chartPane.value?.$el.getBoundingClientRect().width
+  chart.height = chartPane.value?.$el.getBoundingClientRect().height
+  chart.style.left = `${chartPane.value?.$el.getBoundingClientRect().left}px`
+  chart.style.top = `${chartPane.value?.$el.getBoundingClientRect().top}px`
+
+  time.width = chart.width
+  time.height = time.parentElement!.getBoundingClientRect().height
+  time.style.left = chart.style.left
 }
 </script>
