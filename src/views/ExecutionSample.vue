@@ -29,11 +29,15 @@
       <button class="disabled:opacity-50 enabled:hover:bg-slate-300 w-5 h-5 ml-2 text-xs text-center border-2 border-slate-400"
               @click="onScaleChange(currentScale * 1.5)"
               :disabled="state !== 'loaded'">+</button>
-      <canvas ref="timeAxis"
-              id="time-axis"
-              class="absolute z-10 top-0 border-l border-slate-400 cursor-crosshair"
-              width="0"
-              height="0"/>
+      <div ref="timeAxis"
+           id="time-axis"
+           @mousemove="onAxisMouseMove"
+           @mouseout="onMouseOut"
+           @mousedown="onAxisMouseDown"
+           @mouseup="onAxisMouseUp"
+           class="absolute z-10 top-0 h-full cursor-crosshair" >
+        <span id="time-label" class="text-xs relative"/>
+      </div>
     </div>
     <canvas ref="headerOverlay"
             id="header-overlay"
@@ -63,7 +67,7 @@
                      width="0"
                      height="0"/>
               </pane>
-              <pane class="overflow-auto relative"
+              <pane class="overflow-auto relative overscroll-x-none"
                     @scroll="syncScroll('chart')"
                     ref="chartPane"
                     id="chart-pane">
@@ -160,6 +164,10 @@ const CHART_CONFIG: ChartConfig = {
   overlayConfig: {
     rowHighlightArgbHex: 0x40404040,
     sampleHighlightRgbHex: 0xf04074
+  },
+  axisConfig: {
+    elementId: "time-axis",
+    labelElementId: "time-label",
   }
 }
 
@@ -172,7 +180,7 @@ const headerOverlay = ref<HTMLCanvasElement>()
 const chartOverlay = ref<HTMLCanvasElement>()
 const header = ref<SVGGraphicsElement>()
 const chart = ref<HTMLCanvasElement>()
-const timeAxis = ref<HTMLCanvasElement>()
+const timeAxis = ref<HTMLElement>()
 const threadNameRegex = ref<string>()
 const stackTraceMatchRegex = ref<string>()
 const stackTraceRejectRegex = ref<string>()
@@ -236,6 +244,24 @@ function onChartMouseMove(e: MouseEvent) {
   renderer.value?.on_chart_mouse_move(
       e.clientX - chart.value!.getBoundingClientRect().x,
       e.clientY - chart.value!.getBoundingClientRect().y)
+}
+
+function onAxisMouseDown(e: MouseEvent) {
+  renderer.value?.on_axis_mouse_down(
+      e.clientX - timeAxis.value!.getBoundingClientRect().x,
+      e.clientY - timeAxis.value!.getBoundingClientRect().y)
+}
+
+function onAxisMouseUp(e: MouseEvent) {
+  renderer.value?.on_axis_mouse_up(
+      e.clientX - timeAxis.value!.getBoundingClientRect().x,
+      e.clientY - timeAxis.value!.getBoundingClientRect().y)
+}
+
+function onAxisMouseMove(e: MouseEvent) {
+  renderer.value?.on_axis_mouse_move(
+      e.clientX - timeAxis.value!.getBoundingClientRect().x,
+      e.clientY - timeAxis.value!.getBoundingClientRect().y)
 }
 
 function onMouseOut() {
@@ -327,8 +353,7 @@ const syncSize = () => {
   chart.style.left = `${chartPane.value?.$el.getBoundingClientRect().left}px`
   chart.style.top = `${chartPane.value?.$el.getBoundingClientRect().top}px`
 
-  time.width = chart.width
-  time.height = time.parentElement!.getBoundingClientRect().height
+  time.style.width = `${chart.width}px`
   time.style.left = chart.style.left
 }
 </script>

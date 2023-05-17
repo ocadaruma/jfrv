@@ -6,7 +6,7 @@ use crate::web::{Canvas, Document, Svg};
 use crate::Result;
 use crate::{flame_graph, Dimension};
 use chrono::{Local, NaiveDateTime, TimeZone};
-use log::debug;
+use log::{debug, info};
 
 use crate::flame_graph::render::{FlameGraph, FlameGraphConfig, FlameGraphRenderer};
 use serde::{Deserialize, Serialize};
@@ -24,6 +24,7 @@ pub struct ChartConfig {
     pub sample_view_config: SampleViewConfig,
     pub thread_state_color_config: ThreadStateColorConfig,
     pub overlay_config: OverlayConfig,
+    pub axis_config: AxisConfig,
 }
 
 #[derive(Default, Deserialize, Serialize, Tsify)]
@@ -35,6 +36,14 @@ pub struct HeaderConfig {
     pub element_id: String,
     pub pane_id: String,
     pub overlay_element_id: String,
+}
+
+#[derive(Default, Deserialize, Serialize, Tsify)]
+#[tsify(into_wasm_abi, from_wasm_abi)]
+#[serde(rename_all = "camelCase")]
+pub struct AxisConfig {
+    pub element_id: String,
+    pub label_element_id: String,
 }
 
 #[derive(Default, Deserialize, Serialize, Tsify)]
@@ -93,8 +102,10 @@ pub struct Renderer {
     chart: Canvas,
     chart_pane: HtmlElement,
     chart_overlay: Canvas,
+    time_label: HtmlElement,
     row_highlight: JsValue,
     sample_highlight: JsValue,
+    selection_state: Option<((f32, i64), (f32, i64))>
 }
 
 #[wasm_bindgen]
@@ -115,6 +126,8 @@ impl Renderer {
                 .get_element_by_id(chart_config.sample_view_config.pane_id.as_str())?,
             chart_overlay: document
                 .get_canvas_by_id(chart_config.sample_view_config.overlay_element_id.as_str())?,
+            time_label: document
+                .get_element_by_id(chart_config.axis_config.label_element_id.as_str())?,
             row_highlight: JsValue::from_str(
                 format!("#{:x}", chart_config.overlay_config.row_highlight_argb_hex).as_str(),
             ),
@@ -127,6 +140,7 @@ impl Renderer {
             ),
             document,
             chart_config,
+            selection_state: None,
         })
     }
 
@@ -158,6 +172,11 @@ impl Renderer {
                             .height)
                         / 2.0;
                 for (_j, sample) in samples.iter().enumerate() {
+                    if let Some(((x1, from), (x2, to))) = self.selection_state {
+                        if sample.timestamp_nanos < from || sample.timestamp_nanos > to {
+                            continue
+                        }
+                    }
                     let x = self.sample_view_width() * self.elapsed_ratio(sample.timestamp_nanos);
                     let color = if self.profile.is_valid_sample(sample) {
                         match sample.state {
@@ -295,11 +314,69 @@ impl Renderer {
         self.on_mouse_move(None, y)
     }
 
+    pub fn on_axis_mouse_move(&mut self, x: f32, y: f32) -> Result<()> {
+        let timestamp_nanos = self.overlay_x_to_timestamp_nanos(x);
+        let timestamp = NaiveDateTime::from_timestamp(
+            timestamp_nanos / 1_000_000_000,
+            (timestamp_nanos % 1_000_000_000) as u32,
+        );
+        let t = Local
+            .from_utc_datetime(&timestamp)
+            .format("%Y-%m-%d %H:%M:%S.%3f")
+            .to_string();
+        self.chart_overlay.clear();
+        self.chart_overlay.ctx.begin_path();
+        self.chart_overlay.ctx.move_to(x as f64, 0.0);
+        self.chart_overlay.ctx.line_to(x as f64, self.chart_overlay.raw.height() as f64);
+        self.chart_overlay.ctx.stroke();
+
+        self.time_label.set_text_content(Some(&t));
+        // self.time_label.style().set_property("display", "inline")?;
+        self.time_label.style().set_property("left", format!("{}px", x).as_str());
+        // self.time_axis.clear();
+        // self.time_axis.ctx.set_fill_style(&JsValue::from_str("#000000"));
+        // self.time_axis.ctx.fill_text(&t, _x as f64, 16.0);
+        // self.on_mouse_move(None, y)
+
+        if let Some(((x1, from), (x2, to))) = self.selection_state {
+            let new_x1 = x.min(x1).min(x2);
+            let new_x2 = x.max(x1).max(x2);
+            let new_from = timestamp_nanos.min(from).min(to);
+            let new_to = timestamp_nanos.max(from).max(to);
+
+            self.chart_overlay
+                .ctx
+                .set_fill_style(&JsValue::from_str("rgba(0, 0, 0, 0.2)"));
+            self.chart_overlay
+                .ctx
+                .fill_rect(new_x1 as f64, 0.0, (new_x2 - new_x1) as f64, self.chart_overlay.raw.height() as f64);
+
+            self.selection_state = Some(((new_x1, new_from), (new_x2, new_to)));
+        }
+        Ok(())
+    }
+
+    pub fn on_axis_mouse_down(&mut self, x: f32, y: f32) -> Result<()> {
+        let timestamp_nanos = self.overlay_x_to_timestamp_nanos(x);
+        self.selection_state = Some(((x, timestamp_nanos), (x, timestamp_nanos)));
+        Ok(())
+    }
+
+    pub fn on_axis_mouse_up(&mut self, x: f32, y: f32) -> Result<()> {
+        let timestamp_nanos = self.overlay_x_to_timestamp_nanos(x);
+        if let Some(((x1, from), (x2, to))) = self.selection_state {
+            self.render()?;
+            self.selection_state = None;
+        }
+        Ok(())
+    }
+
     pub fn on_mouse_out(&mut self) {
         self.header_overlay.clear();
         self.chart_overlay.clear();
         self.chart_state.highlighted_thread_id = None;
         self.chart_state.highlighted_sample_idx = None;
+        // self.time_label.style().set_property("display", "none");
     }
 
     pub fn on_chart_click(&self) -> Option<ExecutionSampleInfo> {
@@ -416,6 +493,13 @@ impl Renderer {
     fn elapsed_ratio(&self, timestamp_nanos: i64) -> f32 {
         ((timestamp_nanos - (self.profile.interval.start_millis * 1000000)) as f64
             / (self.profile.interval.duration_millis() * 1000000) as f64) as f32
+    }
+
+    fn overlay_x_to_timestamp_nanos(&self, x: f32) -> i64 {
+        let elapsed_ratio = ((self.chart_pane.scroll_left() as f32 + x) / self.sample_view_width())
+            .max(0.0).min(1.0);
+        ((elapsed_ratio as f64 * self.profile.interval.duration_millis() as f64) as i64
+            + self.profile.interval.start_millis) * 1000000
     }
 
     fn row_height(&self) -> f32 {
