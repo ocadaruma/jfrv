@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div class="font-mono">
     <router-view v-slot="{ Component }">
       <keep-alive>
         <component :is="Component" />

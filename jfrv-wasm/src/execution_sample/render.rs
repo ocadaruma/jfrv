@@ -102,7 +102,7 @@ pub struct Renderer {
     chart: Canvas,
     chart_pane: HtmlElement,
     chart_overlay: Canvas,
-    time_label: HtmlElement,
+    // time_label: HtmlElement,
     row_highlight: JsValue,
     sample_highlight: JsValue,
     selection_state: Option<((f32, i64), (f32, i64))>
@@ -126,8 +126,8 @@ impl Renderer {
                 .get_element_by_id(chart_config.sample_view_config.pane_id.as_str())?,
             chart_overlay: document
                 .get_canvas_by_id(chart_config.sample_view_config.overlay_element_id.as_str())?,
-            time_label: document
-                .get_element_by_id(chart_config.axis_config.label_element_id.as_str())?,
+            // time_label: document
+            //     .get_element_by_id(chart_config.axis_config.label_element_id.as_str())?,
             row_highlight: JsValue::from_str(
                 format!("#{:x}", chart_config.overlay_config.row_highlight_argb_hex).as_str(),
             ),
@@ -330,9 +330,9 @@ impl Renderer {
         self.chart_overlay.ctx.line_to(x as f64, self.chart_overlay.raw.height() as f64);
         self.chart_overlay.ctx.stroke();
 
-        self.time_label.set_text_content(Some(&t));
+        // self.time_label.set_text_content(Some(&t));
         // self.time_label.style().set_property("display", "inline")?;
-        self.time_label.style().set_property("left", format!("{}px", x).as_str());
+        // self.time_label.style().set_property("left", format!("{}px", x).as_str());
         // self.time_axis.clear();
         // self.time_axis.ctx.set_fill_style(&JsValue::from_str("#000000"));
         // self.time_axis.ctx.fill_text(&t, _x as f64, 16.0);

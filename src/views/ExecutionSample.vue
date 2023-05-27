@@ -5,7 +5,7 @@
     <!-- may be straightforward. However, if we do so, we found that chart area's bottom pane (stacktrace view)'s -->
     <!-- scroll calculation will be broken. -->
     <!-- TODO: To fix, we need to check how splitpane works -->
-    <div class="fixed top-12 left-0 right-0 h-12 bg-neutral-100 z-40 border-b border-slate-400 p-2">
+    <div class="w-full h-12 bg-neutral-100 border-b border-slate-400 p-2">
       <button class="hover:bg-slate-300 w-24 h-7 text-sm text-center border-2 rounded border-slate-400" @click="open">open file</button>
       <button class="hover:bg-slate-300 w-24 h-7 text-sm text-center border-2 border-slate-500 absolute right-2" @click="loadDemo">load demo</button>
       <span class="h-7 ml-2">thread name:</span>
@@ -19,7 +19,7 @@
               @click="showFlameGraph"
               :disabled="state !== 'loaded'">&#x1f525;</button>
     </div>
-    <div class="fixed top-24 left-0 right-0 h-8 bg-neutral-50 z-40 border-b border-slate-400 p-0.5">
+    <div class="w-full h-8 bg-neutral-50 border-b border-slate-400 p-0.5">
       <button class="disabled:opacity-50 enabled:hover:bg-slate-300 w-12 h-5 ml-2 text-xs text-center border-2 border-slate-400"
               @click="onScaleChange(1)"
               :disabled="state !== 'loaded'">reset</button>
@@ -29,15 +29,15 @@
       <button class="disabled:opacity-50 enabled:hover:bg-slate-300 w-5 h-5 ml-2 text-xs text-center border-2 border-slate-400"
               @click="onScaleChange(currentScale * 1.5)"
               :disabled="state !== 'loaded'">+</button>
-      <div ref="timeAxis"
-           id="time-axis"
-           @mousemove="onAxisMouseMove"
-           @mouseout="onMouseOut"
-           @mousedown="onAxisMouseDown"
-           @mouseup="onAxisMouseUp"
-           class="absolute z-10 top-0 h-full cursor-crosshair" >
-        <span id="time-label" class="text-xs relative"/>
-      </div>
+<!--      <div ref="timeAxis"-->
+<!--           id="time-axis"-->
+<!--           @mousemove="onAxisMouseMove"-->
+<!--           @mouseout="onMouseOut"-->
+<!--           @mousedown="onAxisMouseDown"-->
+<!--           @mouseup="onAxisMouseUp"-->
+<!--           class="absolute z-10 top-0 h-full cursor-crosshair" >-->
+<!--        <span id="time-label" class="text-xs relative"/>-->
+<!--      </div>-->
     </div>
     <canvas ref="headerOverlay"
             id="header-overlay"
@@ -180,7 +180,7 @@ const headerOverlay = ref<HTMLCanvasElement>()
 const chartOverlay = ref<HTMLCanvasElement>()
 const header = ref<SVGGraphicsElement>()
 const chart = ref<HTMLCanvasElement>()
-const timeAxis = ref<HTMLElement>()
+// const timeAxis = ref<HTMLElement>()
 const threadNameRegex = ref<string>()
 const stackTraceMatchRegex = ref<string>()
 const stackTraceRejectRegex = ref<string>()
@@ -246,23 +246,23 @@ function onChartMouseMove(e: MouseEvent) {
       e.clientY - chart.value!.getBoundingClientRect().y)
 }
 
-function onAxisMouseDown(e: MouseEvent) {
-  renderer.value?.on_axis_mouse_down(
-      e.clientX - timeAxis.value!.getBoundingClientRect().x,
-      e.clientY - timeAxis.value!.getBoundingClientRect().y)
-}
-
-function onAxisMouseUp(e: MouseEvent) {
-  renderer.value?.on_axis_mouse_up(
-      e.clientX - timeAxis.value!.getBoundingClientRect().x,
-      e.clientY - timeAxis.value!.getBoundingClientRect().y)
-}
-
-function onAxisMouseMove(e: MouseEvent) {
-  renderer.value?.on_axis_mouse_move(
-      e.clientX - timeAxis.value!.getBoundingClientRect().x,
-      e.clientY - timeAxis.value!.getBoundingClientRect().y)
-}
+// function onAxisMouseDown(e: MouseEvent) {
+//   renderer.value?.on_axis_mouse_down(
+//       e.clientX - timeAxis.value!.getBoundingClientRect().x,
+//       e.clientY - timeAxis.value!.getBoundingClientRect().y)
+// }
+//
+// function onAxisMouseUp(e: MouseEvent) {
+//   renderer.value?.on_axis_mouse_up(
+//       e.clientX - timeAxis.value!.getBoundingClientRect().x,
+//       e.clientY - timeAxis.value!.getBoundingClientRect().y)
+// }
+//
+// function onAxisMouseMove(e: MouseEvent) {
+//   renderer.value?.on_axis_mouse_move(
+//       e.clientX - timeAxis.value!.getBoundingClientRect().x,
+//       e.clientY - timeAxis.value!.getBoundingClientRect().y)
+// }
 
 function onMouseOut() {
   renderer.value?.on_mouse_out()
@@ -338,8 +338,11 @@ const syncScroll = (src: "header" | "chart") => {
 const syncSize = () => {
   const header = headerOverlay.value
   const chart = chartOverlay.value
-  const time = timeAxis.value
-  if (!(header && chart && time)) {
+  // const time = timeAxis.value
+  // if (!(header && chart && time)) {
+  //   return
+  // }
+  if (!(header && chart)) {
     return
   }
 
@@ -353,7 +356,7 @@ const syncSize = () => {
   chart.style.left = `${chartPane.value?.$el.getBoundingClientRect().left}px`
   chart.style.top = `${chartPane.value?.$el.getBoundingClientRect().top}px`
 
-  time.style.width = `${chart.width}px`
-  time.style.left = chart.style.left
+  // time.style.width = `${chart.width}px`
+  // time.style.left = chart.style.left
 }
 </script>
