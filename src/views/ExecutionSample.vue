@@ -29,11 +29,11 @@
       <button class="disabled:opacity-50 enabled:hover:bg-slate-300 w-5 h-5 ml-2 text-xs text-center border-2 border-slate-400"
               @click="onScaleChange(currentScale * 1.5)"
               :disabled="state !== 'loaded'">+</button>
-      <canvas ref="timeAxis"
-              id="time-axis"
-              class="absolute z-10 top-0 border-l border-slate-400 cursor-crosshair"
-              width="0"
-              height="0"/>
+      <div ref="timeAxis"
+           id="time-axis"
+           class="absolute z-10 top-0 h-full">
+        <span id="time-label" class="text-xs relative hidden" style="transform: translateX(-100%)"/>
+      </div>
     </div>
     <canvas ref="headerOverlay"
             id="header-overlay"
@@ -116,6 +116,8 @@
     </div>
     <div class="fixed w-72 h-24 bg-neutral-200 border-neutral-500 p-2 border-2 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"
          v-if="state === 'loading'">Loading...</div>
+    <div class="fixed w-72 h-24 bg-neutral-200 border-neutral-500 p-2 border-2 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"
+         v-if="state === 'failed'">Failed to load JFR: {{ currentFailure }}</div>
   </TabView>
 </template>
 
@@ -159,7 +161,11 @@ const CHART_CONFIG: ChartConfig = {
   },
   overlayConfig: {
     rowHighlightArgbHex: 0x40404040,
-    sampleHighlightRgbHex: 0xf04074
+    sampleHighlightRgbHex: 0xf04074,
+    timestampStrokeWidth: 0.5,
+  },
+  axisConfig: {
+    labelElementId: "time-label",
   }
 }
 
@@ -172,11 +178,12 @@ const headerOverlay = ref<HTMLCanvasElement>()
 const chartOverlay = ref<HTMLCanvasElement>()
 const header = ref<SVGGraphicsElement>()
 const chart = ref<HTMLCanvasElement>()
-const timeAxis = ref<HTMLCanvasElement>()
+const timeAxis = ref<HTMLElement>()
 const threadNameRegex = ref<string>()
 const stackTraceMatchRegex = ref<string>()
 const stackTraceRejectRegex = ref<string>()
-const state = ref<"loading" | "loaded">()
+const state = ref<"loading" | "loaded" | "failed">()
+const currentFailure = ref<string>()
 const currentScale = ref<number>()
 
 const {
@@ -244,10 +251,11 @@ function onMouseOut() {
 
 async function openFile(acceptedFiles: File[], rejectReasons: FileRejectReason[]) {
   state.value = "loading"
-  const buf = await acceptedFiles[0].arrayBuffer()
+  const file = acceptedFiles[0]
+  const buf = await file.arrayBuffer()
   const data = new Uint8Array(buf)
 
-  await loadData(data)
+  await loadData(file.name, data)
 }
 
 async function loadDemo() {
@@ -256,7 +264,7 @@ async function loadDemo() {
   const buf = await response.arrayBuffer()
   const data = new Uint8Array(buf)
 
-  await loadData(data)
+  await loadData("demo.jfr", data)
 }
 
 async function onScaleChange(scale: number) {
@@ -281,7 +289,7 @@ async function showFlameGraph() {
   FlameGraphWindow.open(flameGraph)
 }
 
-async function loadData(data: Uint8Array) {
+async function loadData(filename: string, data: Uint8Array) {
   threadNameRegex.value = undefined;
   stackTraceMatchRegex.value = undefined;
   stackTraceRejectRegex.value = undefined;
@@ -289,11 +297,13 @@ async function loadData(data: Uint8Array) {
     renderer.value?.initialize(data)
     renderer.value?.render()
     syncSize()
-  } catch (e) {
-    state.value = undefined
+  } catch (e: any) {
+    state.value = "failed"
+    currentFailure.value = e?.toString()
     throw e
   }
 
+  document.title = `jfrv - ${filename}`
   state.value = "loaded"
 }
 
@@ -327,8 +337,7 @@ const syncSize = () => {
   chart.style.left = `${chartPane.value?.$el.getBoundingClientRect().left}px`
   chart.style.top = `${chartPane.value?.$el.getBoundingClientRect().top}px`
 
-  time.width = chart.width
-  time.height = time.parentElement!.getBoundingClientRect().height
+  time.style.width = `${chart.width}px`
   time.style.left = chart.style.left
 }
 </script>

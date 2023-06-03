@@ -24,6 +24,7 @@ pub struct ChartConfig {
     pub sample_view_config: SampleViewConfig,
     pub thread_state_color_config: ThreadStateColorConfig,
     pub overlay_config: OverlayConfig,
+    pub axis_config: AxisConfig,
 }
 
 #[derive(Default, Deserialize, Serialize, Tsify)]
@@ -54,6 +55,14 @@ pub struct SampleViewConfig {
 pub struct OverlayConfig {
     pub row_highlight_argb_hex: u32,
     pub sample_highlight_rgb_hex: u32,
+    pub timestamp_stroke_width: f64,
+}
+
+#[derive(Default, Deserialize, Serialize, Tsify)]
+#[tsify(into_wasm_abi, from_wasm_abi)]
+#[serde(rename_all = "camelCase")]
+pub struct AxisConfig {
+    pub label_element_id: String,
 }
 
 #[derive(Default, Deserialize, Serialize, Tsify)]
@@ -93,6 +102,7 @@ pub struct Renderer {
     chart: Canvas,
     chart_pane: HtmlElement,
     chart_overlay: Canvas,
+    time_label: HtmlElement,
     row_highlight: JsValue,
     sample_highlight: JsValue,
 }
@@ -115,6 +125,8 @@ impl Renderer {
                 .get_element_by_id(chart_config.sample_view_config.pane_id.as_str())?,
             chart_overlay: document
                 .get_canvas_by_id(chart_config.sample_view_config.overlay_element_id.as_str())?,
+            time_label: document
+                .get_element_by_id(chart_config.axis_config.label_element_id.as_str())?,
             row_highlight: JsValue::from_str(
                 format!("#{:x}", chart_config.overlay_config.row_highlight_argb_hex).as_str(),
             ),
@@ -300,6 +312,7 @@ impl Renderer {
         self.chart_overlay.clear();
         self.chart_state.highlighted_thread_id = None;
         self.chart_state.highlighted_sample_idx = None;
+        self.time_label.style().set_property("display", "none");
     }
 
     pub fn on_chart_click(&self) -> Option<ExecutionSampleInfo> {
@@ -386,7 +399,7 @@ impl Renderer {
                 .ctx
                 .fill_rect(0.0, y, self.header_overlay.raw.width() as f64, h);
 
-            if let Some((_, x, y)) = highlighted_sample {
+            if let Some((idx, x, y)) = highlighted_sample {
                 self.chart_overlay
                     .ctx
                     .set_fill_style(&self.sample_highlight);
@@ -399,6 +412,30 @@ impl Renderer {
                         .width as f64,
                     h,
                 );
+
+                let overlay_x = x as f64 - self.chart_pane.scroll_left() as f64;
+                self.chart_overlay.ctx.set_line_width(self.chart_config.overlay_config.timestamp_stroke_width);
+                self.chart_overlay.ctx.begin_path();
+                self.chart_overlay.ctx.move_to(overlay_x, 0.0);
+                self.chart_overlay.ctx.line_to(overlay_x, self.chart_overlay.raw.height() as f64);
+                self.chart_overlay.ctx.stroke();
+
+                if let Some(thread_id) = thread_id {
+                    if let Some(samples) = self.profile.per_thread_samples.get(&thread_id) {
+                        let timestamp_nanos = samples[idx].timestamp_nanos;
+                        let timestamp = NaiveDateTime::from_timestamp(
+                            timestamp_nanos / 1_000_000_000,
+                            (timestamp_nanos % 1_000_000_000) as u32,
+                        );
+                        let t = Local
+                            .from_utc_datetime(&timestamp)
+                            .format("%Y-%m-%d %H:%M:%S.%3f")
+                            .to_string();
+                        self.time_label.set_text_content(Some(&t));
+                        self.time_label.style().set_property("left", format!("{}px", overlay_x).as_str());
+                        self.time_label.style().set_property("display", "inline-block");
+                    }
+                }
             }
         }
         self.chart_state.highlighted_thread_id = thread_id;
