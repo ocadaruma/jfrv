@@ -172,7 +172,7 @@ impl Profile {
         });
     }
 
-    pub fn threads(&self) -> &Vec<Thread> {
+    pub fn filtered_threads(&self) -> &Vec<Thread> {
         &self.filtered_threads
     }
 

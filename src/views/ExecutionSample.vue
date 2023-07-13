@@ -196,7 +196,7 @@ const {
   multiple: false,
   noClick: true,
   noKeyboard: true,
-  accept: ".jfr",
+  accept: [".jfr", ".gz"],
 })
 
 onMounted(async () => {
@@ -294,7 +294,8 @@ async function loadData(filename: string, data: Uint8Array) {
   stackTraceMatchRegex.value = undefined;
   stackTraceRejectRegex.value = undefined;
   try {
-    renderer.value?.initialize(data)
+    const encoding = filename.endsWith(".gz") ? "Gzip" : "Uncompressed"
+    renderer.value?.initialize(data, encoding)
     renderer.value?.render()
     syncSize()
   } catch (e: any) {

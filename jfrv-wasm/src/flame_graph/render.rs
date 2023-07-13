@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use tsify::Tsify;
 use wasm_bindgen::prelude::*;
-use web_sys::{HtmlElement, Window};
+use web_sys::HtmlElement;
 
 #[derive(Default, Deserialize, Serialize, Tsify)]
 #[tsify(into_wasm_abi, from_wasm_abi)]
@@ -93,10 +93,8 @@ impl FlameGraphRenderer {
         self.chart
             .ctx
             .scale(self.device_pixel_ratio, self.device_pixel_ratio)?;
-        if let Some(body) = self.document.raw.body() {
-            self.chart
-                .ctx
-                .set_font(self.config.font.as_str());
+        if self.document.raw.body().is_some() {
+            self.chart.ctx.set_font(self.config.font.as_str());
         }
 
         self.inner_render()?;
@@ -105,7 +103,7 @@ impl FlameGraphRenderer {
     }
 
     pub fn onmousemove(&mut self, e: web_sys::MouseEvent) -> Result<()> {
-        let level = (self.chart_height() as usize - e.offset_y() as usize) / 16;
+        let level = (self.chart_height() - e.offset_y() as usize) / 16;
         if level < self.flame_graph.levels.len() {
             if let Some(frame_idx) = self.find_frame(
                 &self.flame_graph.levels[level],

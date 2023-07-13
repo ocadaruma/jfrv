@@ -6,13 +6,15 @@ use crate::web::{Canvas, Document, Svg};
 use crate::Result;
 use crate::{flame_graph, Dimension};
 use chrono::{Local, NaiveDateTime, TimeZone};
+use flate2::read::GzDecoder;
 use log::debug;
+use std::io::{Cursor, Read};
 
-use crate::flame_graph::render::{FlameGraph, FlameGraphConfig, FlameGraphRenderer};
+use crate::flame_graph::render::{FlameGraph, FlameGraphConfig};
 use serde::{Deserialize, Serialize};
 use tsify::Tsify;
 use wasm_bindgen::prelude::*;
-use web_sys::{HtmlElement, Window};
+use web_sys::HtmlElement;
 
 #[derive(Default, Deserialize, Serialize, Tsify)]
 #[tsify(into_wasm_abi, from_wasm_abi)]
@@ -84,6 +86,14 @@ pub struct ExecutionSampleInfo {
     pub os_thread_id: String,
 }
 
+/// Conditions to filter data
+#[derive(Deserialize, Serialize, Tsify)]
+#[tsify(into_wasm_abi, from_wasm_abi)]
+pub enum Encoding {
+    Uncompressed,
+    Gzip,
+}
+
 /// State of the current rendered chart
 #[derive(Default)]
 pub struct ChartState {
@@ -142,15 +152,26 @@ impl Renderer {
         })
     }
 
-    pub fn initialize(&mut self, bytes: Vec<u8>) -> Result<()> {
-        self.profile.load(bytes).map_err(Self::map_js_value)?;
+    pub fn initialize(&mut self, bytes: Vec<u8>, encoding: Encoding) -> Result<()> {
+        match encoding {
+            Encoding::Uncompressed => {
+                self.profile.load(bytes).map_err(Self::map_js_value)?;
+            }
+            Encoding::Gzip => {
+                let mut decoded = Vec::new();
+                GzDecoder::new(Cursor::new(bytes))
+                    .read_to_end(&mut decoded)
+                    .map_err(Self::map_js_value)?;
+                self.profile.load(decoded).map_err(Self::map_js_value)?;
+            }
+        }
         Ok(())
     }
 
     pub fn render(&self) -> Result<()> {
         let document = &self.document;
 
-        let chart_height = self.row_height() * self.profile.threads().len() as f32;
+        let chart_height = self.row_height() * self.profile.filtered_threads().len() as f32;
         debug!("start render");
 
         self.header.clear();
@@ -159,7 +180,7 @@ impl Renderer {
         self.chart.raw.set_height(chart_height as u32);
         debug!("start draw frame");
 
-        for (i, thread) in self.profile.threads().iter().enumerate() {
+        for (i, thread) in self.profile.filtered_threads().iter().enumerate() {
             if let Some(samples) = self.profile.per_thread_samples.get(&thread.os_thread_id) {
                 let y = self.row_height() * i as f32
                     + (self.row_height()
@@ -243,7 +264,7 @@ impl Renderer {
 
         debug!("start render border");
         // render borders based on the header width retrieved from bbox
-        for i in 0..(self.profile.threads().len() as isize - 1) {
+        for i in 0..(self.profile.filtered_threads().len() as isize - 1) {
             let y = (self.row_height() + self.row_height() * i as f32).to_string();
             let line = document
                 .raw
@@ -274,10 +295,7 @@ impl Renderer {
         Ok(())
     }
 
-    pub fn flame_graph(
-        &mut self,
-        config: FlameGraphConfig,
-    ) -> FlameGraph {
+    pub fn flame_graph(&mut self, config: FlameGraphConfig) -> FlameGraph {
         FlameGraph::from(
             &flame_graph::FlameGraph::from_execution_sample(&self.profile),
             &config.color_palette,
@@ -299,20 +317,20 @@ impl Renderer {
         self.render()
     }
 
-    pub fn on_chart_mouse_move(&mut self, x: f32, y: f32) {
+    pub fn on_chart_mouse_move(&mut self, x: f32, y: f32) -> Result<()> {
         self.on_mouse_move(Some(x), y)
     }
 
-    pub fn on_header_mouse_move(&mut self, _x: f32, y: f32) {
+    pub fn on_header_mouse_move(&mut self, _x: f32, y: f32) -> Result<()> {
         self.on_mouse_move(None, y)
     }
 
-    pub fn on_mouse_out(&mut self) {
+    pub fn on_mouse_out(&mut self) -> Result<()> {
         self.header_overlay.clear();
         self.chart_overlay.clear();
         self.chart_state.highlighted_thread_id = None;
         self.chart_state.highlighted_sample_idx = None;
-        self.time_label.style().set_property("display", "none");
+        self.time_label.style().set_property("display", "none")
     }
 
     pub fn on_chart_click(&self) -> Option<ExecutionSampleInfo> {
@@ -344,11 +362,11 @@ impl Renderer {
         }
     }
 
-    fn on_mouse_move(&mut self, x: Option<f32>, y: f32) {
+    fn on_mouse_move(&mut self, x: Option<f32>, y: f32) -> Result<()> {
         let thread_idx = (y / self.row_height()) as usize;
         let thread_id = self
             .profile
-            .threads()
+            .filtered_threads()
             .get(thread_idx)
             .map(|t| t.os_thread_id);
 
@@ -414,10 +432,14 @@ impl Renderer {
                 );
 
                 let overlay_x = x as f64 - self.chart_pane.scroll_left() as f64;
-                self.chart_overlay.ctx.set_line_width(self.chart_config.overlay_config.timestamp_stroke_width);
+                self.chart_overlay
+                    .ctx
+                    .set_line_width(self.chart_config.overlay_config.timestamp_stroke_width);
                 self.chart_overlay.ctx.begin_path();
                 self.chart_overlay.ctx.move_to(overlay_x, 0.0);
-                self.chart_overlay.ctx.line_to(overlay_x, self.chart_overlay.raw.height() as f64);
+                self.chart_overlay
+                    .ctx
+                    .line_to(overlay_x, self.chart_overlay.raw.height() as f64);
                 self.chart_overlay.ctx.stroke();
 
                 if let Some(thread_id) = thread_id {
@@ -432,14 +454,19 @@ impl Renderer {
                             .format("%Y-%m-%d %H:%M:%S.%3f")
                             .to_string();
                         self.time_label.set_text_content(Some(&t));
-                        self.time_label.style().set_property("left", format!("{}px", overlay_x).as_str());
-                        self.time_label.style().set_property("display", "inline-block");
+                        self.time_label
+                            .style()
+                            .set_property("left", format!("{}px", overlay_x).as_str())?;
+                        self.time_label
+                            .style()
+                            .set_property("display", "inline-block")?;
                     }
                 }
             }
         }
         self.chart_state.highlighted_thread_id = thread_id;
         self.chart_state.highlighted_sample_idx = sample_idx;
+        Ok(())
     }
 
     fn sample_view_width(&self) -> f32 {

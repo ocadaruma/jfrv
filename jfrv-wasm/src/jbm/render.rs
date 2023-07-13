@@ -127,7 +127,7 @@ impl JbmRenderer {
     pub fn render(&self) -> Result<()> {
         let document = &self.document;
 
-        let chart_height = self.row_height() * self.profile.threads().len() as f32;
+        let chart_height = self.row_height() * self.profile.filtered_threads().len() as f32;
         debug!("start render");
 
         self.header.clear();
@@ -140,7 +140,7 @@ impl JbmRenderer {
         self.chart.raw.set_height(chart_height as u32);
         debug!("start draw frame");
 
-        for (i, thread) in self.profile.threads().iter().enumerate() {
+        for (i, thread) in self.profile.filtered_threads().iter().enumerate() {
             if let Some(samples) = self.profile.per_thread_samples.get(&thread.os_thread_id) {
                 let y = self.row_height() * i as f32
                     + (self.row_height()
@@ -212,7 +212,7 @@ impl JbmRenderer {
 
         debug!("start render border");
         // render borders based on the header width retrieved from bbox
-        for i in 0..(self.profile.threads().len() as isize - 1) {
+        for i in 0..(self.profile.filtered_threads().len() as isize - 1) {
             let y = (self.row_height() + self.row_height() * i as f32).to_string();
             let line = document
                 .raw
@@ -278,7 +278,7 @@ impl JbmRenderer {
                 highlighted_thread_id: Some(thread_id),
                 highlighted_sample_idx: Some(sample_idx),
             } => {
-                let thread = self.profile.threads().get(thread_idx);
+                let thread = self.profile.filtered_threads().get(thread_idx);
                 let sample = self
                     .profile
                     .per_thread_samples
@@ -318,7 +318,7 @@ impl JbmRenderer {
         let thread_idx = (y / self.row_height()) as usize;
         let thread_id = self
             .profile
-            .threads()
+            .filtered_threads()
             .get(thread_idx)
             .map(|t| t.os_thread_id);
 

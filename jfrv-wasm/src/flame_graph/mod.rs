@@ -32,7 +32,7 @@ impl FlameGraph {
         let mut flame = Self::new();
 
         let mut pre_aggregation = FxHashMap::default();
-        for thread in profile.threads() {
+        for thread in profile.filtered_threads() {
             if let Some(samples) = profile.per_thread_samples.get(&thread.os_thread_id) {
                 for sample in samples {
                     if profile.is_valid_sample(sample) {
