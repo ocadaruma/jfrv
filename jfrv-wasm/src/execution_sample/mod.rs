@@ -59,7 +59,7 @@ impl Profile {
         let mut interval = TimeInterval::new(i64::MAX, 0);
 
         for (chunk_seq, reader) in reader.chunks().enumerate() {
-            let (reader, chunk) = reader?;
+            let (mut reader, chunk) = reader?;
             let start_nanos = chunk.header.start_time_nanos;
             let start_ticks = chunk.header.start_ticks;
             let ticks_per_nanos = (chunk.header.ticks_per_second as f64) / 1_000_000_000.0;
@@ -217,7 +217,7 @@ impl Profile {
         accessor: &Accessor<'_>,
         field_name: &'static str,
     ) -> Result<ConstantPoolKey> {
-        match accessor.get_field(field_name).map(|v| v.value) {
+        match accessor.get_field_raw(field_name).map(|v| v.value) {
             Some(ValueDescriptor::ConstantPool {
                 class_id,
                 constant_index,

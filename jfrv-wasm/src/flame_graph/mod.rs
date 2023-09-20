@@ -120,7 +120,7 @@ impl Frame {
             category,
         };
 
-        let mut child = self.children.entry(id).or_insert_with(|| Frame {
+        let child = self.children.entry(id).or_insert_with(|| Frame {
             base_type,
             ..Default::default()
         });
