@@ -2,6 +2,7 @@ import {createRouter, createWebHashHistory, RouteRecordRaw} from 'vue-router'
 import ExecutionSample from '@/views/ExecutionSample.vue'
 import JvmBlockingMonitor from '@/views/JvmBlockingMonitor.vue'
 import FlameGraph from "@/views/FlameGraph.vue";
+import JfrQuery from "@/views/JfrQuery.vue";
 
 const routes: Array<RouteRecordRaw> = [
   {
@@ -17,6 +18,11 @@ const routes: Array<RouteRecordRaw> = [
     path: '/jbm',
     name: 'jbm',
     component: JvmBlockingMonitor
+  },
+  {
+    path: '/jfr-query',
+    name: 'jfr-query',
+    component: JfrQuery
   },
   {
     path: '/flame-graph',

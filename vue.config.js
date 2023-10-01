@@ -3,7 +3,7 @@ const path = require("path");
 
 const { defineConfig } = require('@vue/cli-service')
 module.exports = defineConfig({
-  transpileDependencies: true,
+  // transpileDependencies: false,
   chainWebpack: config => {
     config.plugin("wasm-pack")
       .use(WasmPackPlugin)
@@ -16,11 +16,31 @@ module.exports = defineConfig({
           forceMode: "production"
         })
       ).end()
+    config.module
+      .rule("vue")
+      .use("vue-loader")
+      .tap(options => ({
+        ...options,
+        compilerOptions: {
+          isCustomElement: tag => tag.startsWith("perspective-"),
+        }
+      }))
   },
   configureWebpack: {
     experiments: {
-      asyncWebAssembly: true
-    }
+      asyncWebAssembly: true,
+    },
+    module: {
+      rules: [
+        {
+          test: /.*duckdb-mvp\.wasm$/,
+          type: 'asset/resource',
+          generator: {
+              filename: 'static/wasm/[name].[contenthash][ext]',
+          },
+        },
+      ]
+    },
   },
   publicPath: process.env.NODE_ENV === "production" ? "/jfrv/" : "/"
 })

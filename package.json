@@ -9,10 +9,18 @@
     "lint": "vue-cli-service lint"
   },
   "dependencies": {
+    "@codemirror/lang-sql": "^6.5.4",
+    "@duckdb/duckdb-wasm": "file:/Users/hokada/develop/src/github.com/ocadaruma/duckdb-custom-ext/duckdb-wasm/packages/duckdb-wasm",
+    "@finos/perspective": "^2.5.1",
+    "@finos/perspective-viewer": "^2.5.1",
+    "@finos/perspective-viewer-d3fc": "^2.5.1",
+    "@finos/perspective-viewer-datagrid": "^2.5.1",
+    "codemirror": "^6.0.1",
     "core-js": "^3.8.3",
     "splitpanes": "^3.1.1",
     "vue": "^3.2.13",
     "vue-class-component": "^8.0.0-0",
+    "vue-codemirror": "^6.1.1",
     "vue-router": "^4.0.3",
     "vue3-dropzone": "^2.0.1"
   },
@@ -41,6 +49,7 @@
     "tailwind-scrollbar": "^2.0.1",
     "tailwindcss": "^3.1.6",
     "ts-jest": "^27.0.4",
-    "typescript": "~4.5.5"
+    "typescript": "~4.5.5",
+    "webpack-cli": "^5.1.4"
   }
 }

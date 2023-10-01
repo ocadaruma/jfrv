@@ -5,6 +5,9 @@
         <router-link to="/execution-sample" class="hover:bg-slate-300 flex-none pl-2 pr-2 h-7 text-sm text-center border-2 rounded border-slate-400">
           <span class="align-middle">execution sample</span>
         </router-link>
+        <router-link to="/jfr-query" class="hover:bg-slate-300 flex-none pl-2 pr-2 h-7 text-sm text-center border-2 rounded border-slate-400">
+          <span class="align-middle">JFR query</span>
+        </router-link>
         <router-link to="/jbm" class="hover:bg-slate-300 flex-none pl-2 pr-2 h-7 text-sm text-center border-2 rounded border-slate-400">
           <span class="align-middle">offcpu (jvm-blocking-monitor)</span>
         </router-link>
@@ -24,3 +27,5 @@
   background-color: rgb(226 232 240);
 }
 </style>
+<script setup lang="ts">
+</script>
