@@ -1,0 +1,3 @@
+[submodule "duckdb-jfr-extension"]
+	path = duckdb-jfr-extension
+	url = https://github.com/ocadaruma/duckdb-jfr-extension.git

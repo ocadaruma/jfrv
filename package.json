@@ -10,11 +10,12 @@
   },
   "dependencies": {
     "@codemirror/lang-sql": "^6.5.4",
-    "@duckdb/duckdb-wasm": "file:/Users/hokada/develop/src/github.com/ocadaruma/duckdb-custom-ext/duckdb-wasm/packages/duckdb-wasm",
+    "@duckdb/duckdb-wasm": "file:./duckdb-jfr-extension/wasm/duckdb-wasm/packages/duckdb-wasm",
     "@finos/perspective": "^2.5.1",
     "@finos/perspective-viewer": "^2.5.1",
     "@finos/perspective-viewer-d3fc": "^2.5.1",
     "@finos/perspective-viewer-datagrid": "^2.5.1",
+    "apache-arrow": "^13.0.0",
     "codemirror": "^6.0.1",
     "core-js": "^3.8.3",
     "splitpanes": "^3.1.1",

@@ -29,9 +29,9 @@ export class DB {
         return await this.db.runQuery(this.cid!, sql)
     }
 
-    async registerFile(file: File): Promise<void> {
-        await this.db.dropFile(file.name)
-        return this.db.registerFileHandle(file.name, file, duckdb.DuckDBDataProtocol.BROWSER_FILEREADER, true)
+    async registerFile(filename: string, data: Uint8Array): Promise<void> {
+        await this.db.dropFile(filename)
+        return this.db.registerFileBuffer(filename, data)
     }
 
     getFile(name: string): Promise<Uint8Array> {

@@ -35,7 +35,11 @@ so I needed another tool.
 
 To build and run jfrv locally, execute below commands and visit `localhost:8080`.
 
-```
-$ yarn install
+```bash
+# activate emsdk
+$ source /path/to/emsdk/emsdk_env.sh
+$ git submodule update --init --recursive
+$ make -C duckdb-jfr-extension duckdb-wasm
+$ yarn install --install-links
 $ yarn serve
 ```
