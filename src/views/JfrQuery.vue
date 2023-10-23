@@ -19,17 +19,29 @@
     <div class="absolute top-12 right-0 left-0 bottom-0">
       <splitpanes class="default-theme text-sm" horizontal v-bind="getRootProps()">
         <pane>
-          <div class="w-full h-full overflow-auto">
-            <codemirror
-              v-model="query"
-              :placeholder='`Enter query...\n\nDrag & drop OR press "open file" to attach jfr file`'
-              :extensions="[sql(), keymap.of([{ key: 'Ctrl-Enter', run: () => { runQuery(); return true; } }])]"/>
-          </div>
+          <splitpanes vertical>
+            <pane size="20" class="overflow-auto">
+              <div class="m-2 text-xs">
+                <TreeNode :data="dbSchema.tables" />
+              </div>
+            </pane>
+            <pane>
+              <div class="w-full h-full overflow-auto">
+                <codemirror
+                    v-model="query"
+                    :placeholder='`Enter query...  (Drag & drop OR press "open file" to attach jfr file)`'
+                    :extensions="[
+                        sql({dialect: sqlDialect()}),
+                        keymap.of([{ key: 'Ctrl-Enter', run: () => { runQuery(); return true; } }])
+                        ]"/>
+              </div>
+            </pane>
+          </splitpanes>
         </pane>
         <pane size="50">
-          <div class="w-full h-full">
+          <div class="w-full h-full overflow-auto">
             <div v-if="state === 'failed'"
-                 class="w-full h-full text-sm p-2 text-red-500">
+                 class="w-full h-full text-xs p-2 text-red-500">
               <pre>
 {{ currentError }}
               </pre>
@@ -52,17 +64,18 @@
 
 <script lang="ts" setup>
 import { Splitpanes, Pane } from "splitpanes";
-import {onMounted, ref} from "vue";
+import {computed, onMounted, ref} from "vue";
 import {FileRejectReason, useDropzone} from "vue3-dropzone";
 import 'splitpanes/dist/splitpanes.css';
 import TabView from "@/components/TabView.vue";
+import TreeNode from "@/components/TreeNode.vue";
 import perspective from '@finos/perspective';
 import {PerspectiveViewerElement} from "@finos/perspective-viewer/dist/esm/perspective";
 import {Codemirror} from "vue-codemirror";
-import {sql} from "@codemirror/lang-sql";
+import {PostgreSQL, sql, SQLDialect, SQLite} from "@codemirror/lang-sql";
 import {keymap} from "@codemirror/view";
-import {DB} from "@/views/duckdb";
-import {RecordBatchReader, Table, tableFromJSON} from "apache-arrow";
+import {DB, Schema} from "@/views/duckdb";
+import {RecordBatchReader, Table as ArrowTable, tableFromJSON} from "apache-arrow";
 import {valueToString} from "apache-arrow/util/pretty";
 
 const state = ref<"loading" | "loaded" | "failed" | "executing">()
@@ -71,6 +84,14 @@ const currentFile = ref<string>("")
 const queryViewer = ref<PerspectiveViewerElement>()
 const query = ref<string>("")
 const db = ref<DB>()
+const dbSchema = ref<Schema>({ tables: [] })
+// const completionSchema = computed(() => {
+//   const schema: { [table: string]: string[] } = {}
+//   dbSchema.value.tables.forEach((table) => {
+//     schema[`"${table.name}"`] = table.columns.map((column) => column.name)
+//   })
+//   return schema
+// })
 
 const {
   getRootProps,
@@ -83,6 +104,13 @@ const {
   noKeyboard: true,
   accept: [".jfr", ".gz"],
 })
+
+function sqlDialect(): SQLDialect {
+  return SQLDialect.define({
+    ...SQLite.spec,
+    keywords: SQLite.spec.keywords?.concat(" jfr_attach", " jfr_scan"),
+  })
+}
 
 onMounted(async () => {
   db.value = new DB()
@@ -97,6 +125,7 @@ async function runQuery() {
     throw e
   })
   state.value = "loaded"
+  dbSchema.value = await db.value!.schema()
   const worker = perspective.worker()
   const reader = RecordBatchReader.from(result.buffer)
 
@@ -111,7 +140,7 @@ async function runQuery() {
     throw new Error(`Unsupported type: ${key}`)
   }
   const schema: { [key: string]: string } = {}
-  const arrowTable = new Table(reader)
+  const arrowTable = new ArrowTable(reader)
 
   arrowTable.schema.fields.forEach((field) => {
     try {
@@ -161,5 +190,6 @@ async function loadData(filename: string, data: Uint8Array) {
   })
   state.value = "loaded"
   currentFile.value = filename
+  dbSchema.value = await db.value!.schema()
 }
 </script>

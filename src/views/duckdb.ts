@@ -1,5 +1,7 @@
 import * as duckdb from "@duckdb/duckdb-wasm";
 import duckdb_wasm from "@duckdb/duckdb-wasm/dist/duckdb-mvp.wasm";
+import * as arrow from "apache-arrow";
+import {RecordBatchReader} from "apache-arrow";
 
 const BUNDLE = {
     mvp: {
@@ -34,7 +36,39 @@ export class DB {
         return this.db.registerFileBuffer(filename, data)
     }
 
+    async schema(): Promise<Schema> {
+        const result: Schema = { tables: [] }
+        const tableNames = new arrow.Table(RecordBatchReader
+            .from((await this.query("show tables")).buffer)).toArray();
+        for (let i = 0; i < tableNames.length; i++){
+            const tableName = tableNames[i]["name"]
+            const table: Table = { name: tableName, columns: [] }
+            new arrow.Table(RecordBatchReader.from((await this.query(`pragma show('"${tableName}"')`)).buffer))
+                .toArray().forEach((row2) => {
+                const columnName = row2["column_name"]
+                const columnType = row2["column_type"]
+                table.columns.push({ name: columnName, type: columnType })
+            })
+            result.tables.push(table)
+        }
+        return result
+    }
+
     getFile(name: string): Promise<Uint8Array> {
         return this.db.copyFileToBuffer(name)
     }
+}
+
+export interface Schema {
+    tables: Table[];
+}
+
+export interface Table {
+    name: string;
+    columns: Column[];
+}
+
+export interface Column {
+    name: string;
+    type: string;
 }
