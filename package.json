@@ -18,6 +18,8 @@
     "apache-arrow": "^13.0.0",
     "codemirror": "^6.0.1",
     "core-js": "^3.8.3",
+    "date-fns": "^2.30.0",
+    "gridjs": "^6.0.6",
     "splitpanes": "^3.1.1",
     "vue": "^3.2.13",
     "vue-class-component": "^8.0.0-0",
